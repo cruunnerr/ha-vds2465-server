@@ -4,6 +4,7 @@ CONF_DEVICES = "devices"
 CONF_IDENTNR = "identnr"
 CONF_KEYNR = "keynr"
 CONF_KEY = "key"
+CONF_ENCRYPT = "encrypted"
 
 DEFAULT_PORT = 4100
 

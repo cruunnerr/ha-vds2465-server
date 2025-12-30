@@ -18,12 +18,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     port = entry.data.get(CONF_PORT)
     devices_raw = entry.options.get(CONF_DEVICES, {})
     
-    # Konvertiere Keys von String (JSON) zurück zu Int für die Lib
-    devices_config = {}
-    for k, v in devices_raw.items():
-        devices_config[int(k)] = v
+    # Baue Map für die Lib: KeyNr -> Config (nur für verschlüsselte Geräte nötig)
+    devices_config_lib = {}
+    for dev in devices_raw.values():
+        # Nur wenn verschlüsselt und KeyNr vorhanden
+        if dev.get("encrypted", True) and dev.get("keynr"):
+            try:
+                k_nr = int(dev["keynr"])
+                if k_nr > 0:
+                    devices_config_lib[k_nr] = dev
+            except ValueError:
+                pass
 
-    hub = VdsHub(hass, port, devices_config)
+    hub = VdsHub(hass, port, devices_config_lib)
     
     # Start Server Task
     try:

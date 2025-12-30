@@ -15,10 +15,10 @@ async def async_setup_entry(
     devices = entry.options.get(CONF_DEVICES, {})
 
     entities = []
-    for key_nr, dev_conf in devices.items():
-        entities.append(VdsLastMessageSensor(hub, key_nr, dev_conf))
-        entities.append(VdsLastTestMessageSensor(hub, key_nr, dev_conf))
-        entities.append(VdsManufacturerSensor(hub, key_nr, dev_conf))
+    for dev_conf in devices.values():
+        entities.append(VdsLastMessageSensor(hub, dev_conf))
+        entities.append(VdsLastTestMessageSensor(hub, dev_conf))
+        entities.append(VdsManufacturerSensor(hub, dev_conf))
 
     async_add_entities(entities)
 
@@ -29,16 +29,15 @@ class VdsLastMessageSensor(SensorEntity):
     _attr_should_poll = False
     _attr_icon = "mdi:message-text-clock"
 
-    def __init__(self, hub, key_nr, dev_conf):
+    def __init__(self, hub, dev_conf):
         self._hub = hub
-        self._key_nr = int(key_nr)
         self._ident_nr = dev_conf.get("identnr", "Unknown")
+        self._attr_unique_id = f"vds_last_msg_{self._ident_nr}"
         self._attr_name = f"VdS {self._ident_nr} Last Message"
-        self._attr_unique_id = f"vds_last_msg_{self._key_nr}"
         self._attr_native_value = "No messages yet"
         self._attr_extra_state_attributes = {}
         self._attr_device_info = {
-            "identifiers": {(DOMAIN, str(self._key_nr))},
+            "identifiers": {(DOMAIN, str(self._ident_nr))},
             "name": f"VdS Device {self._ident_nr}",
             "manufacturer": "VdS 2465",
             "model": "Generic ID",
@@ -51,13 +50,11 @@ class VdsLastMessageSensor(SensorEntity):
     @callback
     def _handle_event(self, event_type, data):
         """Handle events from VdS Hub."""
-        event_key = data.get("keynr")
-        if event_key != self._key_nr:
+        if data.get("identnr") != self._ident_nr:
             return
 
         if event_type == "alarm":
             self._attr_native_value = data.get("text", "Unknown Event")
-            # Copy all data to attributes for detailed view
             self._attr_extra_state_attributes = data
             self.async_write_ha_state()
         elif event_type == "status":
@@ -71,15 +68,14 @@ class VdsLastTestMessageSensor(SensorEntity):
     _attr_should_poll = False
     _attr_icon = "mdi:calendar-check"
 
-    def __init__(self, hub, key_nr, dev_conf):
+    def __init__(self, hub, dev_conf):
         self._hub = hub
-        self._key_nr = int(key_nr)
         self._ident_nr = dev_conf.get("identnr", "Unknown")
+        self._attr_unique_id = f"vds_last_test_msg_{self._ident_nr}"
         self._attr_name = f"VdS {self._ident_nr} Last Test Message"
-        self._attr_unique_id = f"vds_last_test_msg_{self._key_nr}"
         self._attr_native_value = None
         self._attr_device_info = {
-            "identifiers": {(DOMAIN, str(self._key_nr))},
+            "identifiers": {(DOMAIN, str(self._ident_nr))},
             "name": f"VdS Device {self._ident_nr}",
             "manufacturer": "VdS 2465",
             "model": "Generic ID",
@@ -92,13 +88,11 @@ class VdsLastTestMessageSensor(SensorEntity):
     @callback
     def _handle_event(self, event_type, data):
         """Handle events from VdS Hub."""
-        event_key = data.get("keynr")
-        if event_key != self._key_nr:
+        if data.get("identnr") != self._ident_nr:
             return
 
         if event_type == "status" and "Testmeldung" in data.get("msg", ""):
             now = dt_util.now()
-            # Format: 30.12.2025, 05:46:48
             self._attr_native_value = now.strftime("%d.%m.%Y, %H:%M:%S")
             self.async_write_ha_state()
 
@@ -109,15 +103,14 @@ class VdsManufacturerSensor(SensorEntity):
     _attr_should_poll = False
     _attr_icon = "mdi:identifier"
 
-    def __init__(self, hub, key_nr, dev_conf):
+    def __init__(self, hub, dev_conf):
         self._hub = hub
-        self._key_nr = int(key_nr)
         self._ident_nr = dev_conf.get("identnr", "Unknown")
+        self._attr_unique_id = f"vds_manufacturer_{self._ident_nr}"
         self._attr_name = f"VdS {self._ident_nr} Manufacturer ID"
-        self._attr_unique_id = f"vds_manufacturer_{self._key_nr}"
         self._attr_native_value = "Unknown"
         self._attr_device_info = {
-            "identifiers": {(DOMAIN, str(self._key_nr))},
+            "identifiers": {(DOMAIN, str(self._ident_nr))},
             "name": f"VdS Device {self._ident_nr}",
             "manufacturer": "VdS 2465",
             "model": "Generic ID",
@@ -130,8 +123,7 @@ class VdsManufacturerSensor(SensorEntity):
     @callback
     def _handle_event(self, event_type, data):
         """Handle events from VdS Hub."""
-        event_key = data.get("keynr")
-        if event_key != self._key_nr:
+        if data.get("identnr") != self._ident_nr:
             return
 
         if event_type == "connected":

@@ -24,8 +24,9 @@
                 "title": "Add Device",
                 "data": {
                     "identnr": "Ident number (e.g. 123456)",
-                    "keynr": "Key number (VdS-ID)",
-                    "key": "AES Key (Hex)"
+                    "encrypted": "Enable Encryption (VdS-SecurIP)",
+                    "keynr": "Key number (VdS-ID) - Required if encrypted",
+                    "key": "AES Key (Hex) - Required if encrypted"
                 }
             },
             "remove_device": {
@@ -36,7 +37,8 @@
             }
         },
         "error": {
-            "no_devices": "No devices configured to remove."
+            "no_devices": "No devices configured to remove.",
+            "key_required": "Encryption enabled: Key Number and AES Key are required."
         }
     }
 }

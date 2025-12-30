@@ -3,7 +3,7 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.const import CONF_PORT
 
-from .const import DOMAIN, DEFAULT_PORT, CONF_DEVICES, CONF_IDENTNR, CONF_KEYNR, CONF_KEY
+from .const import DOMAIN, DEFAULT_PORT, CONF_DEVICES, CONF_IDENTNR, CONF_KEYNR, CONF_KEY, CONF_ENCRYPT
 
 class VdSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
@@ -42,25 +42,38 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_add_device(self, user_input=None):
         errors = {}
         if user_input is not None:
-            # Daten speichern
-            devices = self.config_entry_local.options.get(CONF_DEVICES, {}).copy()
-            # KeyNr als String Key für JSON Kompatibilität
-            key_nr = str(user_input[CONF_KEYNR])
+            identnr = user_input[CONF_IDENTNR]
+            encrypted = user_input.get(CONF_ENCRYPT, True)
             
-            devices[key_nr] = {
-                "identnr": user_input[CONF_IDENTNR],
-                "keynr": user_input[CONF_KEYNR],
-                "key": user_input[CONF_KEY],
-                "stehend": True # Default
-            }
+            # Validation: If encrypted, KeyNr and Key are required
+            if encrypted:
+                if not user_input.get(CONF_KEYNR) or not user_input.get(CONF_KEY):
+                    errors["base"] = "key_required"
             
-            return self.async_create_entry(title="", data={CONF_DEVICES: devices})
+            if not errors:
+                # Daten speichern
+                devices = self.config_entry_local.options.get(CONF_DEVICES, {}).copy()
+                
+                # Wir nutzen IdentNr als Unique Key im Storage, da KeyNr bei unverschlüsselten Geräten
+                # evtl. nicht eindeutig oder vorhanden ist.
+                storage_key = str(identnr)
+                
+                devices[storage_key] = {
+                    "identnr": identnr,
+                    "encrypted": encrypted,
+                    "keynr": user_input.get(CONF_KEYNR, 0), # 0 if not set
+                    "key": user_input.get(CONF_KEY, ""),
+                    "stehend": True # Default
+                }
+                
+                return self.async_create_entry(title="", data={CONF_DEVICES: devices})
 
         return self.async_show_form(
             step_id="add_device",
             data_schema=vol.Schema({
                 vol.Required(CONF_IDENTNR): str,
-                vol.Required(CONF_KEYNR): int,
+                vol.Required(CONF_ENCRYPT, default=True): bool,
+                vol.Optional(CONF_KEYNR): int,
                 vol.Optional(CONF_KEY, default=""): str,
             }),
             errors=errors
@@ -79,7 +92,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
             return self.async_abort(reason="no_devices")
 
         # Liste für Dropdown erstellen (IdentNr als Label)
-        options = {k: f"{v['identnr']} (KeyNr: {k})" for k, v in devices.items()}
+        options = {k: f"{v['identnr']} (Encrypted: {v.get('encrypted', True)})" for k, v in devices.items()}
 
         return self.async_show_form(
             step_id="remove_device",

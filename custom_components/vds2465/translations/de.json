@@ -24,8 +24,9 @@
                 "title": "Gerät hinzufügen",
                 "data": {
                     "identnr": "Identnummer (z.B. 123456)",
-                    "keynr": "Schlüsselnummer (VdS-ID)",
-                    "key": "AES Schlüssel (Hex)"
+                    "encrypted": "Verschlüsselung aktivieren (VdS-SecurIP)",
+                    "keynr": "Schlüsselnummer (VdS-ID) - Nötig bei Verschlüsselung",
+                    "key": "AES Schlüssel (Hex) - Nötig bei Verschlüsselung"
                 }
             },
             "remove_device": {
@@ -36,7 +37,8 @@
             }
         },
         "error": {
-            "no_devices": "Keine Geräte zum Entfernen vorhanden."
+            "no_devices": "Keine Geräte zum Entfernen vorhanden.",
+            "key_required": "Verschlüsselung aktiv: Schlüsselnummer und Key müssen angegeben werden."
         }
     }
 }
