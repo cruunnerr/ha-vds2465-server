@@ -7,7 +7,7 @@ It supports encrypted communication (AES) and translates VdS messages into Home 
 ## Features
 
 - **Receives VdS 2465 messages** directly in Home Assistant.
-- **AES Encryption support** (VdS-SecurIP).
+- **AES Encryption support**
 - **Entities per Device**:
   - `binary_sensor`: Connection Status (Online/Offline).
   - `sensor`: Last Message (Readable text).
@@ -58,7 +58,7 @@ Once the integration is added, you need to register your alarm panels so HA can 
 ### 3. Configure your Alarm Panel
 
 Configure your alarm system's IP transmission unit (ÜG) to send to Home Assistant:
-- **Protocol**: VdS 2465 (SecurIP).
+- **Protocol**: VdS 2465-S2.
 - **Target IP**: The IP address of your Home Assistant.
 - **Target Port**: `4100` (or whatever you configured).
 - **Encryption**: Enabled (AES).
@@ -127,6 +127,10 @@ action:
 - **500 Internal Server Error during config**: Update the integration to the latest version.
 - **Devices not connecting**: Check if the AES Key is correct (Hex format) and if the Docker container (if used) maps the port `4100` correctly.
 - **"Unknown KeyNr" logs**: You haven't added the device with that specific Key ID in the integration options yet.
+
+## Known Issues
+- **Devices not connecting after HA restart**: This is just a frontend error. As soon as a message is being sent from the alarm device to HA it will shown as connected again. Will be fixed in the future.
+- **Encryption is neccessary**: Since this integration is brand new, I couldn't test every constellation yet. So for now the fields for encryption must be filled and used.
 
 ## License
 
