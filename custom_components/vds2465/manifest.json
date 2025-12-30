@@ -1,0 +1,13 @@
+{
+  "domain": "vds2465",
+  "name": "VdS 2465 Server",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://github.com/cruunnerr/ha-vds2465-server",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/cruunnerr/ha-vds2465-server/issues",
+  "requirements": [
+    "cryptography"
+  ],
+  "version": "0.0.1"
+}
