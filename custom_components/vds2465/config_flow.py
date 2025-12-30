@@ -29,7 +29,7 @@ class VdSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class VdSOptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry):
         """Initialize options flow."""
-        self.config_entry = config_entry
+        self.config_entry_local = config_entry
         # WICHTIG: FlowHandler __init__ muss aufgerufen werden für internen Status
         super().__init__()
 
@@ -43,7 +43,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
         errors = {}
         if user_input is not None:
             # Daten speichern
-            devices = self.config_entry.options.get(CONF_DEVICES, {}).copy()
+            devices = self.config_entry_local.options.get(CONF_DEVICES, {}).copy()
             # KeyNr als String Key für JSON Kompatibilität
             key_nr = str(user_input[CONF_KEYNR])
             
@@ -67,7 +67,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def async_step_remove_device(self, user_input=None):
-        devices = self.config_entry.options.get(CONF_DEVICES, {})
+        devices = self.config_entry_local.options.get(CONF_DEVICES, {})
         if user_input is not None:
             key_to_remove = user_input["device_to_remove"]
             new_devices = devices.copy()
