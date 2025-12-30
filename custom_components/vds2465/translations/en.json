@@ -1,0 +1,42 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "VdS 2465 Server Configuration",
+                "data": {
+                    "port": "Server Port (Standard: 4100)"
+                }
+            }
+        },
+        "abort": {
+            "single_instance_allowed": "Only one instance is allowed."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "menu_options": {
+                    "add_device": "Add VdS Device",
+                    "remove_device": "Remove VdS Device"
+                }
+            },
+            "add_device": {
+                "title": "Add Device",
+                "data": {
+                    "identnr": "Ident number (e.g. 123456)",
+                    "keynr": "Key number (VdS-ID)",
+                    "key": "AES Key (Hex)"
+                }
+            },
+            "remove_device": {
+                "title": "Remove Device",
+                "data": {
+                    "device_to_remove": "Select Device"
+                }
+            }
+        },
+        "error": {
+            "no_devices": "No devices configured to remove."
+        }
+    }
+}
