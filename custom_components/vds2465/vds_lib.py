@@ -237,6 +237,9 @@ class VdSConnection:
     async def disconnect(self):
         self._running = False
         _LOGGER.info(f"Trenne Verbindung zu {self.peer}")
+        if (self.identnr or self.key_nr_rec) and self.event_callback:
+             self.event_callback("disconnected", {"identnr": self.identnr, "keynr": self.key_nr_rec})
+
         if self.timer_task: self.timer_task.cancel()
         if self.poll_task: self.poll_task.cancel()
         try:
@@ -502,7 +505,7 @@ class VdSConnection:
                 self.identnr = ident_str
                 # Callback: Gerät hat sich gemeldet
                 if self.event_callback:
-                    self.event_callback("connected", {"identnr": ident_str})
+                    self.event_callback("connected", {"identnr": ident_str, "keynr": self.key_nr_rec})
                 
             elif typ == 0x02: # Meldung
                 if len(content) >= 5:
@@ -514,6 +517,7 @@ class VdSConnection:
                     
                     event_data = {
                         "identnr": self.identnr,
+                        "keynr": self.key_nr_rec,
                         "geraet": geraet,
                         "bereich": bereich,
                         "adresse": adresse,
@@ -538,7 +542,7 @@ class VdSConnection:
 
             elif typ == 0x40: # Testmeldung
                 if self.event_callback:
-                    self.event_callback("status", {"identnr": self.identnr, "msg": "Testmeldung"})
+                    self.event_callback("status", {"identnr": self.identnr, "keynr": self.key_nr_rec, "msg": "Testmeldung"})
             
             offset += sl
 
