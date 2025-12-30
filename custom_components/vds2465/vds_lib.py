@@ -262,7 +262,7 @@ class VdSConnection:
         return self.devices_config.get(keynr)
 
     def encrypt(self, data):
-        if not self.device_config:
+        if not self.device_config or not self.device_config.get('key'):
             return data
         
         key_hex = self.device_config['key']
@@ -273,7 +273,7 @@ class VdSConnection:
         return encryptor.update(data) + encryptor.finalize()
 
     def decrypt(self, data):
-        if not self.device_config:
+        if not self.device_config or not self.device_config.get('key'):
             return data
             
         key_hex = self.device_config['key']

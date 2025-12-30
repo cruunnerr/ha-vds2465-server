@@ -128,10 +128,6 @@ action:
 - **Devices not connecting**: Check if the AES Key is correct (Hex format) and if the Docker container (if used) maps the port `4100` correctly.
 - **"Unknown KeyNr" logs**: You haven't added the device with that specific Key ID in the integration options yet.
 
-## Known Issues
-- **Devices not connecting after HA restart**: This is just a frontend error. As soon as a message is being sent from the alarm device to HA it will shown as connected again. Will be fixed in the future.
-- **Encryption is neccessary**: Since this integration is brand new, I couldn't test every constellation yet. So for now the fields for encryption must be filled and used.
-
 ## License
 
 MIT

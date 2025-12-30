@@ -61,7 +61,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
             data_schema=vol.Schema({
                 vol.Required(CONF_IDENTNR): str,
                 vol.Required(CONF_KEYNR): int,
-                vol.Required(CONF_KEY): str,
+                vol.Optional(CONF_KEY, default=""): str,
             }),
             errors=errors
         )
