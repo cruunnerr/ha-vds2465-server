@@ -2,7 +2,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.const import CONF_PORT
-import homeassistant.helpers.config_validation as cv
 
 from .const import DOMAIN, DEFAULT_PORT, CONF_DEVICES, CONF_IDENTNR, CONF_KEYNR, CONF_KEY
 
@@ -29,7 +28,10 @@ class VdSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class VdSOptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry):
+        """Initialize options flow."""
         self.config_entry = config_entry
+        # WICHTIG: FlowHandler __init__ muss aufgerufen werden für internen Status
+        super().__init__()
 
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
