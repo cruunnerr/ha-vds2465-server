@@ -128,6 +128,9 @@ action:
 - **Devices not connecting**: Check if the AES Key is correct (Hex format) and if the Docker container (if used) maps the port `4100` correctly.
 - **"Unknown KeyNr" logs**: You haven't added the device with that specific Key ID in the integration options yet.
 
+- ## Known Issues
+- **Devices not connecting after HA restart**: This is just a frontend error. As soon as a message is being sent from the alarm device to HA it will shown as connected again. May be fixed in the future.    
+
 ## License
 
 MIT
