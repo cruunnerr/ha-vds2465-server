@@ -24,7 +24,7 @@
                 "title": "Gerät hinzufügen",
                 "data": {
                     "identnr": "Identnummer (z.B. 123456)",
-                    "encrypted": "Verschlüsselung aktivieren (VdS-SecurIP)",
+                    "encrypted": "Verschlüsselung aktivieren (AES-128)",
                     "keynr": "Schlüsselnummer (VdS-ID) - Nötig bei Verschlüsselung",
                     "key": "AES Schlüssel (Hex) - Nötig bei Verschlüsselung"
                 }

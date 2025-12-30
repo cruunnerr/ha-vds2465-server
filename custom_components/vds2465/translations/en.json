@@ -24,7 +24,7 @@
                 "title": "Add Device",
                 "data": {
                     "identnr": "Ident number (e.g. 123456)",
-                    "encrypted": "Enable Encryption (VdS-SecurIP)",
+                    "encrypted": "Enable Encryption (AES-128)",
                     "keynr": "Key number (VdS-ID) - Required if encrypted",
                     "key": "AES Key (Hex) - Required if encrypted"
                 }
