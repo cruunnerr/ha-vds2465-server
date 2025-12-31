@@ -543,6 +543,11 @@ class VdSConnection:
             elif typ == 0x40: # Testmeldung
                 if self.event_callback:
                     self.event_callback("status", {"identnr": self.identnr, "keynr": self.key_nr_rec, "msg": "Testmeldung"})
+
+                # Quittung
+                ack_record = bytearray(data[offset-2 : offset+sl])
+                ack_record[1] = 0x41
+                self.send_queue.append(ack_record)
             
             offset += sl
 
