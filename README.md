@@ -129,7 +129,8 @@ action:
 - **"Unknown KeyNr" logs**: You haven't added the device with that specific Key ID in the integration options yet.
 
 ## Known Issues
-- **Devices not connecting after HA restart**: This is just a frontend error. As soon as a message is being sent from the alarm device to HA it will shown as connected again. May be fixed in the future.    
+- **Devices not connecting after HA restart**: This is just a frontend error. As soon as a message is being sent from the alarm device to HA it will shown as connected again. May be fixed in the future.
+- **Manufactur isn't shown correctly**: Instead of the manufactur code like `DS6700 V7.12` it just shows the ID Number. Will be fixed in the future.
 
 ## License
 
