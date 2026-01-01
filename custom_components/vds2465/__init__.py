@@ -4,6 +4,7 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.const import CONF_PORT
+from homeassistant.helpers import device_registry as dr
 from .const import DOMAIN, CONF_DEVICES, EVENT_VDS_ALARM
 from .vds_lib import VdSAsyncServer
 
@@ -17,6 +18,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     port = entry.data.get(CONF_PORT)
     devices_raw = entry.options.get(CONF_DEVICES, {})
+
+    # Cleanup orphaned devices BEFORE starting server
+    # This ensures that even if the server fails to bind (re-load issue), 
+    # the device registry is kept in sync with config.
+    device_registry = dr.async_get(hass)
+    device_entries = dr.async_entries_for_config_entry(device_registry, entry.entry_id)
+    current_ident_nrs = {str(d["identnr"]) for d in devices_raw.values()}
+    
+    for dev_entry in device_entries:
+        for domain, ident in dev_entry.identifiers:
+            if domain == DOMAIN and ident not in current_ident_nrs:
+                _LOGGER.debug(f"Removing orphaned device: {ident}")
+                device_registry.async_remove_device(dev_entry.id)
+                break
     
     # Baue Map für die Lib: KeyNr -> Config (nur für verschlüsselte Geräte nötig)
     devices_config_lib = {}
@@ -48,11 +63,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    _LOGGER.debug("Unloading VdS Entry...")
     hub = hass.data[DOMAIN].get(entry.entry_id)
     if hub:
-        await hub.stop()
+        _LOGGER.debug("Stopping VdS Hub...")
+        try:
+            await hub.stop()
+            _LOGGER.debug("VdS Hub stopped.")
+        except Exception as e:
+             _LOGGER.error(f"Error stopping VdS Hub: {e}")
         
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    _LOGGER.debug(f"Platforms unloaded: {unload_ok}")
+    
     if unload_ok:
         del hass.data[DOMAIN][entry.entry_id]
 

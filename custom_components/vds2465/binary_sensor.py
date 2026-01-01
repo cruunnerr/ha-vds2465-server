@@ -2,6 +2,7 @@ from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySen
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity import EntityCategory
 from .const import DOMAIN, CONF_DEVICES
 
 async def async_setup_entry(
@@ -27,6 +28,7 @@ class VdsConnectivitySensor(BinarySensorEntity):
 
     _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
     _attr_should_poll = False
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, hub, dev_conf):
         self._hub = hub

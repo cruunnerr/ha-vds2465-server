@@ -102,6 +102,8 @@ For each configured device, the following entities are created:
 * **`sensor.vds_[ident]_manufacturer_id`**:
 * Displays the manufacturer string sent by the device upon connection.
 
+* **Auto-generated sensors**: * When the message is received, another sensor is automatically generated based on the incoming address (channel number).
+
 
 
 ### Events
@@ -155,7 +157,6 @@ action:
 ## Known Issues
 
 * **Devices not connecting after HA restart**: This is just a frontend error. As soon as a message is being sent from the alarm device to HA it will shown as connected again. May be fixed in the future.
-* **Manufactur isn't shown correctly**: Instead of the manufactur code like `DS6700 V7.12` it just shows the ID Number. Will be fixed in the future.
 
 ## License
 
@@ -166,6 +167,7 @@ MIT
 ---
 
 <details>
+
 <summary>🇩🇪 <b>Deutsche Version (Übersetzung)</b></summary>
 
 # VdS 2465 Server für Home Assistant
@@ -263,6 +265,9 @@ Für jedes konfigurierte Gerät werden die folgenden Entitäten erstellt:
 * **`sensor.vds_[ident]_manufacturer_id`**:
 * Zeigt die Herstellerkennung an, die das Gerät beim Verbindungsaufbau sendet.
 
+* **Automatisch generierte Sensoren**:
+* Bei Meldungseingang wird bezogen auf die ankommende Adresse (Kanalnummer) automatisch ein weiterer Sensor generiert.
+
 
 
 ### Events
@@ -316,7 +321,6 @@ action:
 ## Bekannte Probleme
 
 * **Geräte verbinden sich nach HA-Neustart nicht**: Dies ist lediglich ein Anzeige-Fehler im Frontend. Sobald eine Nachricht von der Alarmanlage an HA gesendet wird, wird der Status wieder als verbunden angezeigt. Dies wird eventuell in Zukunft behoben.
-* **Hersteller wird nicht korrekt angezeigt**: Anstelle des Herstellercodes wie `DS6700 V7.12` wird nur die ID-Nummer angezeigt. Dies wird in Zukunft behoben.
 
 ## Lizenz
 
