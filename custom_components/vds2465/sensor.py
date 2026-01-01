@@ -1,9 +1,13 @@
+import logging
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.util import dt as dt_util
 from .const import DOMAIN, CONF_DEVICES
+
+_LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -22,16 +26,107 @@ async def async_setup_entry(
 
     async_add_entities(entities)
 
+    # Init Sensor Manager for dynamic address sensors
+    manager = VdsSensorManager(hass, hub, async_add_entities)
+    entry.async_on_unload(manager.unload)
+
+
+class VdsSensorManager:
+    """Manages dynamic creation of sensors for VdS addresses."""
+    
+    def __init__(self, hass, hub, async_add_entities):
+        self.hass = hass
+        self.hub = hub
+        self.async_add_entities = async_add_entities
+        self.known_sensors = set() # (identnr, adresse) tuples
+        self._remove_listener = self.hub.add_listener(self._handle_event)
+
+    def unload(self):
+        """Unload the manager and remove listener."""
+        if self._remove_listener:
+            self._remove_listener()
+            self._remove_listener = None
+
+    def _handle_event(self, event_type, data):
+        """Listen for alarms to discover new addresses."""
+        if event_type != "alarm":
+            return
+            
+        identnr = data.get("identnr")
+        adresse = data.get("adresse")
+        
+        if identnr is None or adresse is None:
+            return
+            
+        key = (str(identnr), str(adresse))
+        if key not in self.known_sensors:
+            self.known_sensors.add(key)
+            _LOGGER.info(f"Discovered new VdS address: {identnr} / {adresse}")
+            sensor = VdsAddressSensor(self.hub, identnr, adresse)
+            self.async_add_entities([sensor])
+
+
+class VdsAddressSensor(SensorEntity):
+    """Sensor representing a specific VdS Address (Zone)."""
+
+    _attr_should_poll = False
+    _attr_icon = "mdi:shield-home"
+
+    def __init__(self, hub, identnr, adresse):
+        self._hub = hub
+        self._ident_nr = str(identnr)
+        self._adresse = int(adresse) # keep as int for comparison if needed, or str
+        
+        # Unique ID combining IdentNr and Address
+        self._attr_unique_id = f"vds_{self._ident_nr}_addr_{self._adresse}"
+        self._attr_name = f"VdS {self._ident_nr} Address {self._adresse}"
+        self._attr_native_value = "Unknown"
+        self._attr_extra_state_attributes = {}
+        
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, str(self._ident_nr))},
+            "name": f"VdS Device {self._ident_nr}",
+            "manufacturer": "VdS 2465",
+            "model": "Generic ID",
+        }
+
+    async def async_added_to_hass(self):
+        """Register callbacks."""
+        self.async_on_remove(self._hub.add_listener(self._handle_event))
+
+    @callback
+    def _handle_event(self, event_type, data):
+        """Handle events from VdS Hub."""
+        # Filter for this specific device
+        if str(data.get("identnr")) != self._ident_nr:
+            return
+        
+        # We only update specific address sensors if an alarm for this address occurs
+        if event_type == "alarm":
+            msg_addr = data.get("adresse")
+            if msg_addr is not None and int(msg_addr) == self._adresse:
+                self._attr_native_value = data.get("text", "Unknown Event")
+                
+                # Update attributes with all available data (includes aligned area_name from lib)
+                self._attr_extra_state_attributes.update(data)
+                
+                # Add specific message text if available in payload
+                if "msg_text" in data:
+                    self._attr_extra_state_attributes["message_text"] = data["msg_text"]
+                    
+                self.async_write_ha_state()
+
 
 class VdsLastMessageSensor(SensorEntity):
     """Sensor showing the last message from a VdS device."""
 
     _attr_should_poll = False
     _attr_icon = "mdi:message-text-clock"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, hub, dev_conf):
         self._hub = hub
-        self._ident_nr = dev_conf.get("identnr", "Unknown")
+        self._ident_nr = str(dev_conf.get("identnr", "Unknown"))
         self._attr_unique_id = f"vds_last_msg_{self._ident_nr}"
         self._attr_name = f"VdS {self._ident_nr} Last Message"
         self._attr_native_value = "No messages yet"
@@ -50,15 +145,24 @@ class VdsLastMessageSensor(SensorEntity):
     @callback
     def _handle_event(self, event_type, data):
         """Handle events from VdS Hub."""
-        if data.get("identnr") != self._ident_nr:
+        if str(data.get("identnr")) != str(self._ident_nr):
             return
+        
+        if event_type == "area_update":
+            self._attr_extra_state_attributes["area_name"] = data.get("area_name")
+            self.async_write_ha_state()
 
-        if event_type == "alarm":
+        elif event_type == "alarm":
             self._attr_native_value = data.get("text", "Unknown Event")
-            self._attr_extra_state_attributes = data
+            self._attr_extra_state_attributes.update(data)
+            
+            if "msg_text" in data:
+                self._attr_extra_state_attributes["message_text"] = data["msg_text"]
+
             self.async_write_ha_state()
         elif event_type == "status":
              self._attr_native_value = data.get("msg", "Status Message")
+             self._attr_extra_state_attributes.update(data)
              self.async_write_ha_state()
 
 
@@ -67,6 +171,7 @@ class VdsLastTestMessageSensor(SensorEntity):
 
     _attr_should_poll = False
     _attr_icon = "mdi:calendar-check"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, hub, dev_conf):
         self._hub = hub
@@ -88,7 +193,7 @@ class VdsLastTestMessageSensor(SensorEntity):
     @callback
     def _handle_event(self, event_type, data):
         """Handle events from VdS Hub."""
-        if data.get("identnr") != self._ident_nr:
+        if str(data.get("identnr")) != str(self._ident_nr):
             return
 
         if event_type == "status" and "Testmeldung" in data.get("msg", ""):
@@ -102,6 +207,7 @@ class VdsManufacturerSensor(SensorEntity):
 
     _attr_should_poll = False
     _attr_icon = "mdi:identifier"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, hub, dev_conf):
         self._hub = hub
@@ -123,11 +229,19 @@ class VdsManufacturerSensor(SensorEntity):
     @callback
     def _handle_event(self, event_type, data):
         """Handle events from VdS Hub."""
-        if data.get("identnr") != self._ident_nr:
+        if str(data.get("identnr")) != str(self._ident_nr):
             return
 
         if event_type == "connected":
             ident = data.get("identnr")
             if ident:
-                self._attr_native_value = ident
+                # We prioritize the full manufacturer string if available, otherwise ident
+                if self._attr_native_value == "Unknown": 
+                     self._attr_native_value = ident
+                     self.async_write_ha_state()
+        
+        elif event_type == "manufacturer_update":
+            manufacturer = data.get("manufacturer")
+            if manufacturer:
+                self._attr_native_value = manufacturer
                 self.async_write_ha_state()
