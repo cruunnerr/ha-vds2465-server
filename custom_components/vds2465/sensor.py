@@ -51,18 +51,31 @@ class VdsSensorManager:
         """Listen for alarms to discover new addresses."""
         if event_type != "alarm":
             return
-            
+
         identnr = data.get("identnr")
         adresse = data.get("adresse")
+        quelle = data.get("quelle")
         
         if identnr is None or adresse is None:
             return
             
-        key = (str(identnr), str(adresse))
+        # Determine sensor type based on source
+        is_output = (quelle == "Ausgang")
+        
+        # Use different key prefix for map to distinguish address vs output sensors for same address ID
+        type_prefix = "out" if is_output else "addr"
+        key = (str(identnr), str(adresse), type_prefix)
+        
         if key not in self.known_sensors:
             self.known_sensors.add(key)
-            _LOGGER.info(f"Discovered new VdS address: {identnr} / {adresse}")
-            sensor = VdsAddressSensor(self.hub, identnr, adresse)
+            
+            if is_output:
+                _LOGGER.info(f"Discovered new VdS output feedback: {identnr} / {adresse}")
+                sensor = VdsOutputSensor(self.hub, identnr, adresse)
+            else:
+                _LOGGER.info(f"Discovered new VdS address: {identnr} / {adresse}")
+                sensor = VdsAddressSensor(self.hub, identnr, adresse)
+                
             self.async_add_entities([sensor])
 
 
@@ -103,6 +116,10 @@ class VdsAddressSensor(SensorEntity):
         
         # We only update specific address sensors if an alarm for this address occurs
         if event_type == "alarm":
+            # Ensure we only track non-output events (inputs/zones)
+            if data.get("quelle") == "Ausgang":
+                return
+
             msg_addr = data.get("adresse")
             if msg_addr is not None and int(msg_addr) == self._adresse:
                 self._attr_native_value = data.get("text", "Unknown Event")
@@ -114,6 +131,55 @@ class VdsAddressSensor(SensorEntity):
                 if "msg_text" in data:
                     self._attr_extra_state_attributes["message_text"] = data["msg_text"]
                     
+                self.async_write_ha_state()
+
+
+class VdsOutputSensor(SensorEntity):
+    """Sensor representing the feedback state of a VdS Output."""
+
+    _attr_should_poll = False
+    _attr_icon = "mdi:toggle-switch"
+
+    def __init__(self, hub, identnr, adresse):
+        self._hub = hub
+        self._ident_nr = str(identnr)
+        self._adresse = int(adresse)
+        
+        # Unique ID for Output Sensor
+        self._attr_unique_id = f"vds_{self._ident_nr}_output_{self._adresse}"
+        self._attr_name = f"VdS {self._ident_nr} Output {self._adresse}"
+        self._attr_native_value = "Unknown"
+        self._attr_extra_state_attributes = {}
+        
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, str(self._ident_nr))},
+            "name": f"VdS Device {self._ident_nr}",
+            "manufacturer": "VdS 2465",
+            "model": "Generic ID",
+        }
+
+    async def async_added_to_hass(self):
+        """Register callbacks."""
+        self.async_on_remove(self._hub.add_listener(self._handle_event))
+
+    @callback
+    def _handle_event(self, event_type, data):
+        """Handle events from VdS Hub."""
+        if str(data.get("identnr")) != self._ident_nr:
+            return
+        
+        if event_type == "alarm":
+            # Ensure we only track output events
+            if data.get("quelle") != "Ausgang":
+                return
+
+            msg_addr = data.get("adresse")
+            if msg_addr is not None and int(msg_addr) == self._adresse:
+                # For outputs, typically we get "Ein" or "Aus" in "zustand"
+                # But we can also show the text
+                self._attr_native_value = data.get("zustand", data.get("text", "Unknown"))
+                
+                self._attr_extra_state_attributes.update(data)
                 self.async_write_ha_state()
 
 

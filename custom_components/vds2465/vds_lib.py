@@ -3,6 +3,7 @@ import struct
 import logging
 import binascii
 import os
+import datetime
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 
@@ -146,36 +147,50 @@ VDS_MESSAGES = {
     240: "Firmenspezifische Meldungen - Aus"
 }
 
-def calculate_checksum_logic(data, skip_offset_4=False):
+VDS_ERRORS = {
+    0: "Allgemein: Fehler",
+    1: "Nicht bekannt",
+    2: "Nicht erfuellbar",
+    3: "Negativquittierung",
+    4: "Falscher Sicherheitscode",
+    0x10: "Adresse nicht vorhanden/ausserhalb Bereich",
+    0x18: "Funktion an dieser Adresse nicht moeglich",
+    0x20: "Daten ausserhalb des Wertebereichs",
+    0x80: "Pruefsumme fehlerhaft"
+}
+
+def calculate_checksum_logic(data, check_mode=False):
     crc = 0
+    original = 0
     length = len(data)
     for pos in range(0, length, 2):
-        if skip_offset_4 and pos == 4:
-            continue
-            
         temp = data[pos] << 8
         if pos + 1 == length:
             temp |= 0x00
         else:
             temp |= data[pos + 1]
         
-        crc += temp
-        if crc > 65535:
-            crc &= 0xffff
-            crc += 1
+        if check_mode and pos == 4:
+            original = temp
+        else:
+            crc += temp
+            if crc > 65535:
+                crc &= 0xffff
+                crc += 1
             
     crc = ~crc & 0xffff
-    return crc
+    return crc, original
 
 def check_crc16(data):
     if len(data) < 6:
         return False
-    original = (data[4] << 8) | data[5]
-    calculated = calculate_checksum_logic(data, skip_offset_4=True)
+    calculated, original = calculate_checksum_logic(data, check_mode=True)
+    if calculated != original:
+        _LOGGER.debug(f"CRC Mismatch: Rec={original:04X} Calc={calculated:04X} Data={binascii.hexlify(data)}")
     return calculated == original
 
 def set_crc16(data):
-    crc = calculate_checksum_logic(data, skip_offset_4=True)
+    crc, _ = calculate_checksum_logic(data, check_mode=True)
     struct.pack_into('>H', data, 4, crc)
     return data
 
@@ -185,6 +200,21 @@ def pad_data(data):
     if length + diff < MIN_LENGTH:
         diff = MIN_LENGTH - length
     return data + (b'\x00' * diff)
+
+def get_time_buffer():
+    now = datetime.datetime.now()
+    # Satz 50: [Len(9), Typ(0x50), Jahr%100, Jahr//100, Monat, Tag, Stunde, Minute, Sekunde]
+    buf = bytearray(9)
+    buf[0] = 7 # Len payload only
+    buf[1] = 0x50
+    buf[2] = now.year % 100
+    buf[3] = now.year // 100
+    buf[4] = now.month
+    buf[5] = now.day
+    buf[6] = now.hour
+    buf[7] = now.minute
+    buf[8] = now.second
+    return buf
 
 
 class VdSConnection:
@@ -210,6 +240,7 @@ class VdSConnection:
         self.timer_task = None
         self.poll_task = None
         self.polling_interval = 5
+        self.vds_request_counter = 0
         
         self.last_sent_rc = 0
         self.send_queue = []
@@ -375,35 +406,35 @@ class VdSConnection:
             self.reset_timer()
             
         elif action == ACTION_DATA:
-            if len(self.buffer) < 4: return
-            
-            key_nr = struct.unpack('>H', self.buffer[0:2])[0]
-            sl = struct.unpack('>H', self.buffer[2:4])[0]
-            
-            total_len = 4 + sl
-            if len(self.buffer) < total_len: return
-            
-            packet_data = self.buffer[4:total_len]
-            # _LOGGER.debug(f"RX Header: KeyNr={key_nr}, Len={sl}")
-            
-            self.buffer = self.buffer[total_len:]
-            self.key_nr_rec = key_nr
-            
-            if key_nr > 0:
-                dev = self.get_device_by_keynr(key_nr)
-                if dev:
-                    self.device_config = dev
-                    decrypted = self.decrypt(packet_data)
-                else:
-                    _LOGGER.warning(f"Unbekannte KeyNr: {key_nr}")
-                    await self.disconnect()
-                    return
-            else:
-                self.device_config = None
-                decrypted = packet_data
+            while len(self.buffer) >= 4:
+                key_nr = struct.unpack('>H', self.buffer[0:2])[0]
+                sl = struct.unpack('>H', self.buffer[2:4])[0]
                 
-            if self.process_packet(decrypted):
-                if self.timer_task: self.timer_task.cancel()
+                total_len = 4 + sl
+                if len(self.buffer) < total_len:
+                    break # Wait for more data
+                
+                packet_data = self.buffer[4:total_len]
+                # _LOGGER.debug(f"RX Header: KeyNr={key_nr}, Len={sl}")
+                
+                self.buffer = self.buffer[total_len:]
+                self.key_nr_rec = key_nr
+                
+                if key_nr > 0:
+                    dev = self.get_device_by_keynr(key_nr)
+                    if dev:
+                        self.device_config = dev
+                        decrypted = self.decrypt(packet_data)
+                    else:
+                        _LOGGER.warning(f"Unbekannte KeyNr: {key_nr}")
+                        await self.disconnect()
+                        return
+                else:
+                    self.device_config = None
+                    decrypted = packet_data
+                    
+                if self.process_packet(decrypted):
+                    if self.timer_task: self.timer_task.cancel()
 
         elif action == ACTION_IK3:
             await self.send_ik3()
@@ -427,7 +458,15 @@ class VdSConnection:
 
         elif action == ACTION_IK3_AFTER_POLL:
             if self.poll_task: self.poll_task.cancel()
-            self.poll_task = asyncio.create_task(self.wait_and_poll())
+            
+            # VdS Service Request Logic (Burst Mode)
+            if self.vds_request_counter > 0:
+                await self.send_ik3()
+                self.vds_request_counter -= 1
+                # Do not trigger next cycle immediately; wait for response
+                # self.poll_task = asyncio.create_task(self.controller(ACTION_IK3_AFTER_POLL)) 
+            else:
+                self.poll_task = asyncio.create_task(self.wait_and_poll())
 
         elif action == ACTION_TIMER_EXPIRED:
             self.send_counter += 1
@@ -476,12 +515,27 @@ class VdSConnection:
 
         self.send_counter = 0
         
-        if ik == 1: return True
-        elif ik == 2:
-            asyncio.create_task(self.controller(ACTION_IK3))
+        if ik == 1: 
+            # Poll received - answer with Data if available, else Poll back delayed
+            if self.send_queue:
+                asyncio.create_task(self.controller(ACTION_IK4))
+            else:
+                asyncio.create_task(self.controller(ACTION_IK3_AFTER_POLL))
             return True
+            
+        elif ik == 2:
+            # Ack received - send next Data if available, else Poll back immediately
+            if self.send_queue:
+                asyncio.create_task(self.controller(ACTION_IK4))
+            else:
+                asyncio.create_task(self.controller(ACTION_IK3))
+            return True
+
         elif ik == 3:
-            asyncio.create_task(self.controller(ACTION_IK3_AFTER_POLL))
+            if self.send_queue:
+                asyncio.create_task(self.controller(ACTION_IK4))
+            else:
+                asyncio.create_task(self.controller(ACTION_IK3_AFTER_POLL))
             return True
         elif ik == 4:
             payload = data[offset:offset+l]
@@ -492,11 +546,16 @@ class VdSConnection:
                 asyncio.create_task(self.controller(ACTION_IK3_AFTER_POLL))
             return True
         elif ik == 7:
+            # VdS Service Request: Reset counter in packet if needed and trigger burst
             expected_tc = (self.last_sent_rc - 1) & 0xFFFFFFFF
             if self.tc_rec != expected_tc:
+                _LOGGER.debug(f"IK7: Zaehler TC von {self.tc_rec:X} in {expected_tc:X} korrigiert")
                 self.tc_rec = expected_tc
+            
+            # Start Burst Mode (5 quick polls)
+            self.vds_request_counter = 5
+            if self.poll_task: self.poll_task.cancel()
             asyncio.create_task(self.send_ik3())
-            asyncio.create_task(self.controller(ACTION_IK3_AFTER_POLL))
             return True
             
         asyncio.create_task(self.controller(ACTION_IK5))
@@ -524,6 +583,22 @@ class VdSConnection:
                 self.identnr = self.decode_ident(content)
                 _LOGGER.info(f"Gerät Identifiziert: {self.identnr}")
                 packet_context["identnr"] = self.identnr
+                
+                # Verify Key matches Ident configuration
+                # Find device config by Ident to check KeyNr
+                matched_dev_config = None
+                for knr, conf in self.devices_config.items():
+                    if conf.get('identnr') == self.identnr:
+                        matched_dev_config = conf
+                        matched_keynr = knr
+                        break
+                
+                if matched_dev_config:
+                    if self.key_nr_rec != matched_keynr:
+                        _LOGGER.warning(f"Verbindung bei {self.identnr} mit KeyNr:{self.key_nr_rec}, erwartet:{matched_keynr}")
+                else:
+                     _LOGGER.warning(f"Unbekannte Identnummer: {self.identnr}")
+
                 if self.event_callback:
                     self.event_callback("connected", {"identnr": self.identnr, "keynr": self.key_nr_rec})
             
@@ -544,13 +619,16 @@ class VdSConnection:
 
         # Now process actions with the collected context
         for typ, content, sl in records:
-            if typ == 0x02: # Meldung (Alarm)
+            if typ == 0x02 or typ == 0x03 or typ == 0x04 or typ == 0x20: # Meldung (Alarm) / Status
                 if len(content) >= 5:
                     geraet = (content[0] >> 4) & 0x0F
                     bereich = content[0] & 0x0F
                     adresse = content[1]
                     adr_erw = content[3]
                     meldungsart = content[4]
+                    
+                    msg_type_text = "Meldung"
+                    if typ == 0x20: msg_type_text = "Status"
                     
                     event_data = {
                         "identnr": self.identnr,
@@ -560,6 +638,7 @@ class VdSConnection:
                         "adresse": adresse,
                         "code": meldungsart,
                         "text": VDS_MESSAGES.get(meldungsart, f"Unbekannt ({meldungsart})"),
+                        "type": msg_type_text,
                         **packet_context # Include Area Name and Manufacturer
                     }
                     
@@ -576,28 +655,82 @@ class VdSConnection:
                         event_data["zustand"] = "Ein" if meldungsart < 128 else "Aus"
                     elif adr_erw == 2:
                         event_data["quelle"] = "Ausgang"
+                        event_data["zustand"] = "Ein" if meldungsart < 128 else "Aus"
                     
-                    _LOGGER.info(f"Alarm with context: {event_data}")
+                    _LOGGER.info(f"{msg_type_text} with context: {event_data}")
                     if self.event_callback:
                         self.event_callback("alarm", event_data)
 
-                    # Quittung
-                    ack_record = bytearray([sl, 0x03] + list(content))
-                    self.send_queue.append(ack_record)
+                    # Quittung nur bei 0x02
+                    if typ == 0x02:
+                        ack_record = bytearray([sl, 0x03] + list(content))
+                        self.send_queue.append(ack_record)
+            
+            elif typ == 0x11: # Fehler
+                if len(content) >= 2:
+                    geraet = (content[0] >> 4) & 0x0F
+                    err_code = content[1]
+                    err_text = VDS_ERRORS.get(err_code, f"Unbekannter Fehler {err_code}")
+                    _LOGGER.warning(f"VdS Fehler empfangen: {err_text} (Code: {err_code}, Geraet: {geraet})")
+                    if self.event_callback:
+                        self.event_callback("error", {"identnr": self.identnr, "code": err_code, "text": err_text})
 
             elif typ == 0x40: # Testmeldung
                 if self.event_callback:
                     self.event_callback("status", {"identnr": self.identnr, "keynr": self.key_nr_rec, "msg": "Testmeldung", **packet_context})
-                # Quittung
-                ack_record = bytearray([sl, 0x41] + list(content))
-                self.send_queue.append(ack_record)
+                # Quittung mit 0x41 + Zeit (Satz 0x50)
+                ack_head = bytearray([0, 0x41])
+                time_buf = get_time_buffer()
+                ack_payload = ack_head + time_buf
+                
+                self.send_queue.append(ack_payload)
             
-            # Specific updates for non-alarm changes
+            elif typ == 0x50: # Zeit
+                # Optional: Sync time? Just log for now
+                try:
+                    # content: Year%100, Year/100, Mon, Day, Hour, Min, Sec
+                    if len(content) >= 7:
+                        year = content[0] + content[1]*100
+                        dt = datetime.datetime(year, content[2], content[3], content[4], content[5], content[6])
+                        _LOGGER.debug(f"Anlagenzeit empfangen: {dt}")
+                except Exception: pass
+
             elif typ == 0x51 and self.event_callback:
                 self.event_callback("manufacturer_update", {"identnr": self.identnr, "manufacturer": packet_context.get("manufacturer")})
             
             elif typ == 0x54 and self.event_callback:
                 self.event_callback("area_update", {"identnr": self.identnr, "area_name": packet_context.get("area_name")})
+
+            elif typ == 0x59: # Geraetemerkmale
+                # Parse TLV style: Len, Typ, Index, Text
+                sub_offset = 1 # Skip Geraet byte
+                features = {}
+                while sub_offset < len(content):
+                    if sub_offset + 3 > len(content): break
+                    l_sub = content[sub_offset]
+                    t_sub = content[sub_offset+1]
+                    i_sub = content[sub_offset+2]
+                    
+                    if sub_offset + l_sub > len(content): break
+                    
+                    val_bytes = content[sub_offset+3 : sub_offset+l_sub]
+                    try:
+                        val_str = val_bytes.decode('iso-8859-1')
+                        label = f"Unknown-{t_sub}"
+                        if t_sub == 0: label = "MAC"
+                        elif t_sub == 1: label = "IMEI"
+                        elif t_sub == 2: label = "SIM"
+                        elif t_sub == 3: label = "Tel"
+                        
+                        path = "Erstweg" if i_sub == 1 else "Zweitweg"
+                        features[f"{label}-{path}"] = val_str
+                    except Exception: pass
+                    
+                    sub_offset += l_sub
+                
+                _LOGGER.info(f"Geraetemerkmale: {features}")
+                if self.event_callback and features:
+                    self.event_callback("features_update", {"identnr": self.identnr, "features": features})
 
     def decode_ident(self, data):
         res = ""
@@ -606,6 +739,22 @@ class VdSConnection:
             if low != 0xF: res += str(low)
             if high != 0xF: res += str(high)
         return res
+
+    def send_output_command(self, address, state, device=1, area=1):
+        payload = bytearray(7)
+        payload[0] = 5 # L
+        payload[1] = 0x02 # T
+        
+        # Geraet (High Nibble) / Bereich (Low Nibble)
+        gebe = ((device << 4) & 0xF0) | (area & 0x0F)
+        payload[2] = gebe
+        
+        payload[3] = address & 0xFF
+        payload[4] = 0x00 # Adresszusatz
+        payload[5] = 0x02 # Adresserweiterung (Ausgang)
+        payload[6] = 0x00 if state else 0x80 # Meldungsart
+        
+        self.send_queue.append(payload)
 
 class VdSAsyncServer:
     def __init__(self, host, port, devices, event_callback):
@@ -661,3 +810,10 @@ class VdSAsyncServer:
             await conn.run()
         finally:
             self._connections.discard(conn)
+
+    def send_output_command(self, identnr, address, state, device=1, area=1):
+        for conn in self._connections:
+            if conn.identnr == identnr:
+                conn.send_output_command(address, state, device, area)
+                return True
+        return False

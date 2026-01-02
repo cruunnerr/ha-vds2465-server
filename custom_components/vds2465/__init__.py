@@ -10,7 +10,7 @@ from .vds_lib import VdSAsyncServer
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["binary_sensor", "sensor"]
+PLATFORMS = ["binary_sensor", "sensor", "switch"]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up VdS 2465 from a config entry."""
@@ -115,3 +115,8 @@ class VdsHub:
     def add_listener(self, callback_func):
         self._listeners.append(callback_func)
         return lambda: self._listeners.remove(callback_func)
+
+    def send_output(self, identnr, address, state, device=1, area=1):
+        """Send output command to a specific device."""
+        if not self.server.send_output_command(identnr, address, state, device, area):
+            _LOGGER.warning(f"Could not send output command to {identnr}: Device not connected")
