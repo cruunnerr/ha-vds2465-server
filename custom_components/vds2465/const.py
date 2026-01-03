@@ -5,6 +5,8 @@ CONF_IDENTNR = "identnr"
 CONF_KEYNR = "keynr"
 CONF_KEY = "key"
 CONF_ENCRYPT = "encrypted"
+CONF_VDS_DEVICE = "vds_device"
+CONF_VDS_AREA = "vds_area"
 
 DEFAULT_PORT = 4100
 

@@ -34,18 +34,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 break
     
     # Baue Map für die Lib: KeyNr -> Config (nur für verschlüsselte Geräte nötig)
-    devices_config_lib = {}
-    for dev in devices_raw.values():
-        # Nur wenn verschlüsselt und KeyNr vorhanden
-        if dev.get("encrypted", True) and dev.get("keynr"):
-            try:
-                k_nr = int(dev["keynr"])
-                if k_nr > 0:
-                    devices_config_lib[k_nr] = dev
-            except ValueError:
-                pass
+    # Update: Wir übergeben nun alle Configs als Liste an die Lib, damit diese
+    # auch unverschlüsselte Geräte anhand der IdentNr validieren kann.
+    devices_config_list = list(devices_raw.values())
 
-    hub = VdsHub(hass, port, devices_config_lib)
+    hub = VdsHub(hass, port, devices_config_list)
     
     # Start Server Task
     try:

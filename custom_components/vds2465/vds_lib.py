@@ -222,7 +222,7 @@ class VdSConnection:
         self.reader = reader
         self.writer = writer
         self.peer = writer.get_extra_info('peername')
-        self.devices_config = devices_config # Dict: {keynr: {key: "...", identnr: "..."}}
+        self.devices_config = devices_config # List of dicts: [{key: "...", identnr: "...", keynr: ...}, ...]
         self.event_callback = event_callback # Funktion(event_type, data)
         
         self.tc = int.from_bytes(os.urandom(4), 'big')
@@ -304,7 +304,10 @@ class VdSConnection:
              await self.disconnect()
 
     def get_device_by_keynr(self, keynr):
-        return self.devices_config.get(keynr)
+        for dev in self.devices_config:
+            if int(dev.get('keynr', 0)) == keynr:
+                return dev
+        return None
 
     def encrypt(self, data):
         if not self.device_config or not self.device_config.get('key'):
@@ -587,17 +590,27 @@ class VdSConnection:
                 # Verify Key matches Ident configuration
                 # Find device config by Ident to check KeyNr
                 matched_dev_config = None
-                for knr, conf in self.devices_config.items():
+                matched_keynr = 0
+                
+                for conf in self.devices_config:
                     if conf.get('identnr') == self.identnr:
                         matched_dev_config = conf
-                        matched_keynr = knr
+                        # Get KeyNr if exists, else 0
+                        matched_keynr = int(conf.get('keynr', 0))
                         break
                 
                 if matched_dev_config:
+                    # Update device config reference for future polling settings etc.
+                    self.device_config = matched_dev_config
+                    
                     if self.key_nr_rec != matched_keynr:
+                        # Only warn if mismatched. 0 vs 0 is fine.
                         _LOGGER.warning(f"Verbindung bei {self.identnr} mit KeyNr:{self.key_nr_rec}, erwartet:{matched_keynr}")
                 else:
-                     _LOGGER.warning(f"Unbekannte Identnummer: {self.identnr}")
+                     _LOGGER.warning(f"Unbekannte Identnummer: {self.identnr}, trenne Verbindung.")
+                     # Disconnect unknown devices
+                     asyncio.create_task(self.disconnect())
+                     return
 
                 if self.event_callback:
                     self.event_callback("connected", {"identnr": self.identnr, "keynr": self.key_nr_rec})
@@ -745,7 +758,8 @@ class VdSConnection:
         payload[0] = 5 # L
         payload[1] = 0x02 # T
         
-        # Geraet (High Nibble) / Bereich (Low Nibble)
+        # Geraet (High Nibble) / 
+        # Bereich (Low Nibble)
         gebe = ((device << 4) & 0xF0) | (area & 0x0F)
         payload[2] = gebe
         
