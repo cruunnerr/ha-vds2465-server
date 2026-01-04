@@ -9,6 +9,30 @@ from .const import DOMAIN, CONF_DEVICES
 
 _LOGGER = logging.getLogger(__name__)
 
+# Persistent device-level attributes
+VDS_PERSISTENT_ATTRIBUTES = [
+    "identnr",
+    "area_name",
+    "manufacturer"
+]
+
+# Message-specific attributes that should reset to '-' if not in current message
+VDS_MESSAGE_ATTRIBUTES = [
+    "entstehungszeit",
+    "priority",
+    "transport_service",
+    "telegram_counter",
+    "geraet",
+    "bereich",
+    "adresse",
+    "code",
+    "text",
+    "type",
+    "msg_text",
+    "quelle",
+    "zustand"
+]
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -124,8 +148,8 @@ class VdsAddressSensor(SensorEntity):
             if msg_addr is not None and int(msg_addr) == self._adresse:
                 self._attr_native_value = data.get("text", "Unknown Event")
                 
-                # Update attributes with all available data (includes aligned area_name from lib)
-                self._attr_extra_state_attributes.update(data)
+                # Set attributes to ONLY the values from this message
+                self._attr_extra_state_attributes = data.copy()
                 
                 # Add specific message text if available in payload
                 if "msg_text" in data:
@@ -179,7 +203,9 @@ class VdsOutputSensor(SensorEntity):
                 # But we can also show the text
                 self._attr_native_value = data.get("zustand", data.get("text", "Unknown"))
                 
-                self._attr_extra_state_attributes.update(data)
+                # Set attributes to ONLY the values from this message
+                self._attr_extra_state_attributes = data.copy()
+
                 self.async_write_ha_state()
 
 
@@ -196,7 +222,11 @@ class VdsLastMessageSensor(SensorEntity):
         self._attr_unique_id = f"vds_last_msg_{self._ident_nr}"
         self._attr_name = f"VdS {self._ident_nr} Last Message"
         self._attr_native_value = "No messages yet"
-        self._attr_extra_state_attributes = {}
+        
+        # Initial attributes with placeholders
+        self._attr_extra_state_attributes = {key: "-" for key in VDS_PERSISTENT_ATTRIBUTES + VDS_MESSAGE_ATTRIBUTES}
+        self._attr_extra_state_attributes["identnr"] = self._ident_nr
+        
         self._attr_device_info = {
             "identifiers": {(DOMAIN, str(self._ident_nr))},
             "name": f"VdS Device {self._ident_nr}",
@@ -214,22 +244,32 @@ class VdsLastMessageSensor(SensorEntity):
         if str(data.get("identnr")) != str(self._ident_nr):
             return
         
-        if event_type == "area_update":
-            self._attr_extra_state_attributes["area_name"] = data.get("area_name")
-            self.async_write_ha_state()
-
-        elif event_type == "alarm":
-            self._attr_native_value = data.get("text", "Unknown Event")
+        if event_type in ["alarm", "status"]:
+            # Reset message-specific attributes to placeholders, keep persistent ones
+            for key in VDS_MESSAGE_ATTRIBUTES:
+                self._attr_extra_state_attributes[key] = "-"
+            
+            # Update with new message data
             self._attr_extra_state_attributes.update(data)
+            
+            if event_type == "alarm":
+                self._attr_native_value = data.get("text", "Unknown Event")
+            else:
+                self._attr_native_value = data.get("msg", "Status Message")
             
             if "msg_text" in data:
                 self._attr_extra_state_attributes["message_text"] = data["msg_text"]
 
             self.async_write_ha_state()
-        elif event_type == "status":
-             self._attr_native_value = data.get("msg", "Status Message")
-             self._attr_extra_state_attributes.update(data)
-             self.async_write_ha_state()
+
+        elif event_type in ["area_update", "manufacturer_update", "features_update"]:
+            # For metadata updates, just update attributes, do not touch native_value or reset others
+            if event_type == "features_update":
+                self._attr_extra_state_attributes.update(data.get("features", {}))
+            else:
+                self._attr_extra_state_attributes.update(data)
+            
+            self.async_write_ha_state()
 
 
 class VdsLastTestMessageSensor(SensorEntity):
@@ -281,6 +321,7 @@ class VdsManufacturerSensor(SensorEntity):
         self._attr_unique_id = f"vds_manufacturer_{self._ident_nr}"
         self._attr_name = f"VdS {self._ident_nr} Manufacturer ID"
         self._attr_native_value = "Unknown"
+        self._attr_extra_state_attributes = {}
         self._attr_device_info = {
             "identifiers": {(DOMAIN, str(self._ident_nr))},
             "name": f"VdS Device {self._ident_nr}",
@@ -310,4 +351,10 @@ class VdsManufacturerSensor(SensorEntity):
             manufacturer = data.get("manufacturer")
             if manufacturer:
                 self._attr_native_value = manufacturer
+                self.async_write_ha_state()
+
+        elif event_type == "features_update":
+            features = data.get("features")
+            if features:
+                self._attr_extra_state_attributes.update(features)
                 self.async_write_ha_state()
