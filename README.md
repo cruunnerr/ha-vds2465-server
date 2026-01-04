@@ -5,7 +5,7 @@ This Home Assistant custom component implements a **VdS 2465 Server**. It allows
 ---
 
 <details>
-<summary>🇬🇧 <b>English Version (Original)</b></summary>
+<summary>🇬🇧 <b>English Version</b></summary>
 
 # VdS 2465 Server for Home Assistant
 
@@ -168,7 +168,7 @@ action:
 
 <details>
 
-<summary>🇩🇪 <b>Deutsche Version (Übersetzung)</b></summary>
+<summary>🇩🇪 <b>Deutsche Version</b></summary>
 
 # VdS 2465 Server für Home Assistant
 
@@ -341,9 +341,10 @@ action:
 
 ---
 
+<details>
+<summary>📊 <b>VdS2465 Event Codes List</b></summary>
 
-# VdS2465 Event Codes
-
+```text
   0: "Meldung - Ein",
   128: "Meldung - Aus",
   1: "Revisionsmeldung - Ausgeloest",
@@ -463,6 +464,9 @@ action:
   230: "Positionsalarm, unerlaubtes Verlassen - Aus",
   112: "Firmenspezifische Meldungen - Ein",
   240: "Firmenspezifische Meldungen - Aus"
+```
+
+</details>
 
 
 # License
