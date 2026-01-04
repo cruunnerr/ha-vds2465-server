@@ -159,6 +159,18 @@ VDS_ERRORS = {
     0x80: "Pruefsumme fehlerhaft"
 }
 
+VDS_TRANSPORT_SERVICES = {
+    0x10: "Analoge Festverbindung",
+    0x20: "Analoge Bedarfsgesteuerte Verbindung",
+    0x30: "X.25 bzw. Datex-P",
+    0x40: "ISDN, B-Kanal",
+    0x50: "ISDN, D-Kanal",
+    0x60: "Buendelfunk, Betriebsfunk",
+    0x70: "Datenfunk",
+    0x80: "Mobilfunk",
+    0x90: "TCP/IP-Intranet-Uebertragung"
+}
+
 def calculate_checksum_logic(data, check_mode=False):
     crc = 0
     original = 0
@@ -222,7 +234,7 @@ class VdSConnection:
         self.reader = reader
         self.writer = writer
         self.peer = writer.get_extra_info('peername')
-        self.devices_config = devices_config # Dict: {keynr: {key: "...", identnr: "..."}}
+        self.devices_config = devices_config # List of dicts: [{key: "...", identnr: "...", keynr: ...}, ...]
         self.event_callback = event_callback # Funktion(event_type, data)
         
         self.tc = int.from_bytes(os.urandom(4), 'big')
@@ -304,7 +316,10 @@ class VdSConnection:
              await self.disconnect()
 
     def get_device_by_keynr(self, keynr):
-        return self.devices_config.get(keynr)
+        for dev in self.devices_config:
+            if int(dev.get('keynr', 0)) == keynr:
+                return dev
+        return None
 
     def encrypt(self, data):
         if not self.device_config or not self.device_config.get('key'):
@@ -587,17 +602,27 @@ class VdSConnection:
                 # Verify Key matches Ident configuration
                 # Find device config by Ident to check KeyNr
                 matched_dev_config = None
-                for knr, conf in self.devices_config.items():
+                matched_keynr = 0
+                
+                for conf in self.devices_config:
                     if conf.get('identnr') == self.identnr:
                         matched_dev_config = conf
-                        matched_keynr = knr
+                        # Get KeyNr if exists, else 0
+                        matched_keynr = int(conf.get('keynr', 0))
                         break
                 
                 if matched_dev_config:
+                    # Update device config reference for future polling settings etc.
+                    self.device_config = matched_dev_config
+                    
                     if self.key_nr_rec != matched_keynr:
+                        # Only warn if mismatched. 0 vs 0 is fine.
                         _LOGGER.warning(f"Verbindung bei {self.identnr} mit KeyNr:{self.key_nr_rec}, erwartet:{matched_keynr}")
                 else:
-                     _LOGGER.warning(f"Unbekannte Identnummer: {self.identnr}")
+                     _LOGGER.warning(f"Unbekannte Identnummer: {self.identnr}, trenne Verbindung.")
+                     # Disconnect unknown devices
+                     asyncio.create_task(self.disconnect())
+                     return
 
                 if self.event_callback:
                     self.event_callback("connected", {"identnr": self.identnr, "keynr": self.key_nr_rec})
@@ -616,6 +641,39 @@ class VdSConnection:
                     packet_context["area_name"] = a_str
                     _LOGGER.debug(f"Area name context: {a_str}")
                 except Exception: pass
+
+            elif typ == 0x50: # Zeit / Entstehungszeit
+                try:
+                    if len(content) >= 7:
+                        year = content[0] + content[1]*100
+                        dt = datetime.datetime(year, content[2], content[3], content[4], content[5], content[6])
+                        packet_context["entstehungszeit"] = dt.strftime("%d.%m.%Y, %H:%M:%S")
+                        _LOGGER.debug(f"Entstehungszeit context: {packet_context['entstehungszeit']}")
+                except Exception: pass
+
+            elif typ == 0x01: # Priorität
+                if len(content) >= 1:
+                    packet_context["priority"] = content[0]
+
+            elif typ == 0x61: # Transportdienst
+                if len(content) >= 1:
+                    service_id = content[0]
+                    packet_context["transport_service"] = VDS_TRANSPORT_SERVICES.get(service_id, f"Unbekannt ({service_id})")
+
+            elif typ in [0x10, 0x24, 0x26, 0x55, 0xFF]:
+                _LOGGER.debug(f"Ignoriere VdS Satztyp: 0x{typ:02X}")
+
+            elif typ == 0x73: # Telegrammzähler
+                try:
+                    if len(content) >= 5:
+                        # Byte 0: Gerät/Bereich, Byte 1-4: Zähler (Big Endian)
+                        counter = struct.unpack('>I', content[1:5])[0]
+                        packet_context["telegram_counter"] = counter
+                        _LOGGER.debug(f"VdS Telegrammzähler empfangen: {counter}")
+                except Exception: pass
+            
+            elif typ == 0x41: # Quittung Testmeldung
+                _LOGGER.debug(f"VdS Quittung Testmeldung empfangen (Satz 0x41)")
 
         # Now process actions with the collected context
         for typ, content, sl in records:
@@ -684,16 +742,6 @@ class VdSConnection:
                 ack_payload = ack_head + time_buf
                 
                 self.send_queue.append(ack_payload)
-            
-            elif typ == 0x50: # Zeit
-                # Optional: Sync time? Just log for now
-                try:
-                    # content: Year%100, Year/100, Mon, Day, Hour, Min, Sec
-                    if len(content) >= 7:
-                        year = content[0] + content[1]*100
-                        dt = datetime.datetime(year, content[2], content[3], content[4], content[5], content[6])
-                        _LOGGER.debug(f"Anlagenzeit empfangen: {dt}")
-                except Exception: pass
 
             elif typ == 0x51 and self.event_callback:
                 self.event_callback("manufacturer_update", {"identnr": self.identnr, "manufacturer": packet_context.get("manufacturer")})
@@ -745,7 +793,8 @@ class VdSConnection:
         payload[0] = 5 # L
         payload[1] = 0x02 # T
         
-        # Geraet (High Nibble) / Bereich (Low Nibble)
+        # Geraet (High Nibble) / 
+        # Bereich (Low Nibble)
         gebe = ((device << 4) & 0xF0) | (area & 0x0F)
         payload[2] = gebe
         

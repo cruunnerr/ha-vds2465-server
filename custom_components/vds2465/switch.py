@@ -3,7 +3,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import EntityCategory
-from .const import DOMAIN, CONF_DEVICES
+from .const import DOMAIN, CONF_DEVICES, CONF_VDS_DEVICE, CONF_VDS_AREA
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -17,9 +17,11 @@ async def async_setup_entry(
     entities = []
     for dev_conf in devices.values():
         identnr = dev_conf.get("identnr", "Unknown")
+        vds_device = dev_conf.get(CONF_VDS_DEVICE, 1)
+        vds_area = dev_conf.get(CONF_VDS_AREA, 1)
         # Create 40 outputs per device
         for i in range(1, 41):
-            entities.append(VdsOutputSwitch(hub, identnr, i))
+            entities.append(VdsOutputSwitch(hub, identnr, i, vds_device, vds_area))
 
     async_add_entities(entities)
 
@@ -32,15 +34,15 @@ class VdsOutputSwitch(SwitchEntity):
     # Default to disabled so user can enable what they need
     _attr_entity_registry_enabled_default = False 
 
-    def __init__(self, hub, identnr, address):
+    def __init__(self, hub, identnr, address, device=1, area=1):
         self._hub = hub
         self._ident_nr = identnr
         self._address = address
         
-        # Default to Device 1, Area 1 if unknown. 
-        # Will be updated if we receive a status packet for this output.
-        self._device = 1
-        self._area = 1
+        # Configured Device/Area. 
+        # Might still be updated if we receive a status packet for this output.
+        self._device = device
+        self._area = area
         
         self._attr_unique_id = f"vds_output_{self._ident_nr}_{self._address}"
         self._attr_name = f"VdS {self._ident_nr} Output {self._address}"

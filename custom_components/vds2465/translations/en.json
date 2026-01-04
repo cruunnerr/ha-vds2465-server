@@ -25,8 +25,10 @@
                 "data": {
                     "identnr": "Ident number (e.g. 123456)",
                     "encrypted": "Enable Encryption (AES-128)",
-                    "keynr": "Key number (VdS-ID) - Required if encrypted",
-                    "key": "AES Key (Hex) - Required if encrypted"
+                    "keynr": "Key number (VdS-KeyNr.) - Required if encrypted",
+                    "key": "AES Key (Hex 32-digit) - Required if encrypted",
+                    "vds_device": "Device number (Standard = 1)",
+                    "vds_area": "Area number (Standard = 1)"
                 }
             },
             "remove_device": {

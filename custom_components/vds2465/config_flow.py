@@ -3,7 +3,7 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.const import CONF_PORT
 
-from .const import DOMAIN, DEFAULT_PORT, CONF_DEVICES, CONF_IDENTNR, CONF_KEYNR, CONF_KEY, CONF_ENCRYPT
+from .const import DOMAIN, DEFAULT_PORT, CONF_DEVICES, CONF_IDENTNR, CONF_KEYNR, CONF_KEY, CONF_ENCRYPT, CONF_VDS_DEVICE, CONF_VDS_AREA
 
 class VdSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
@@ -44,11 +44,20 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             identnr = user_input[CONF_IDENTNR]
             encrypted = user_input.get(CONF_ENCRYPT, True)
+            key = user_input.get(CONF_KEY, "")
             
             # Validation: If encrypted, KeyNr and Key are required
             if encrypted:
-                if not user_input.get(CONF_KEYNR) or not user_input.get(CONF_KEY):
+                if not user_input.get(CONF_KEYNR) or not key:
                     errors["base"] = "key_required"
+                else:
+                    if len(key) != 32:
+                        errors["base"] = "key_length_invalid"
+                    else:
+                        try:
+                            int(key, 16)
+                        except ValueError:
+                            errors["base"] = "key_invalid_hex"
             
             if not errors:
                 # Daten speichern
@@ -62,8 +71,10 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                     "identnr": identnr,
                     "encrypted": encrypted,
                     "keynr": user_input.get(CONF_KEYNR, 0), # 0 if not set
-                    "key": user_input.get(CONF_KEY, ""),
-                    "stehend": True # Default
+                    "key": key,
+                    "stehend": True, # Default
+                    "vds_device": user_input.get(CONF_VDS_DEVICE, 1),
+                    "vds_area": user_input.get(CONF_VDS_AREA, 1),
                 }
                 
                 return self.async_create_entry(title="", data={CONF_DEVICES: devices})
@@ -75,6 +86,8 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Required(CONF_ENCRYPT, default=True): bool,
                 vol.Optional(CONF_KEYNR): int,
                 vol.Optional(CONF_KEY, default=""): str,
+                vol.Optional(CONF_VDS_DEVICE, default=1): int,
+                vol.Optional(CONF_VDS_AREA, default=1): int,
             }),
             errors=errors
         )

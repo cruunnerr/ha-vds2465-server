@@ -25,8 +25,10 @@
                 "data": {
                     "identnr": "Identnummer (z.B. 123456)",
                     "encrypted": "Verschlüsselung aktivieren (AES-128)",
-                    "keynr": "Schlüsselnummer (VdS-ID) - Nötig bei Verschlüsselung",
-                    "key": "AES Schlüssel (Hex) - Nötig bei Verschlüsselung"
+                    "keynr": "Schlüsselnummer (VdS-KeyNr.) - Nötig bei Verschlüsselung",
+                    "key": "AES Schlüssel (Hex 32-stellig) - Nötig bei Verschlüsselung",
+                    "vds_device": "Gerätenummer (Standard = 1)",
+                    "vds_area": "Bereichsnummer (Standard = 1)"
                 }
             },
             "remove_device": {
