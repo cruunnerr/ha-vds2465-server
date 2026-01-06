@@ -7,7 +7,9 @@ CONF_KEY = "key"
 CONF_ENCRYPT = "encrypted"
 CONF_VDS_DEVICE = "vds_device"
 CONF_VDS_AREA = "vds_area"
+CONF_POLLING_INTERVAL = "polling_interval"
 
 DEFAULT_PORT = 4100
+DEFAULT_POLLING_INTERVAL = 5
 
 EVENT_VDS_ALARM = "vds2465_alarm"

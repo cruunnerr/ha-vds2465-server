@@ -230,7 +230,7 @@ def get_time_buffer():
 
 
 class VdSConnection:
-    def __init__(self, reader, writer, devices_config, event_callback):
+    def __init__(self, reader, writer, devices_config, event_callback, polling_interval=5):
         self.reader = reader
         self.writer = writer
         self.peer = writer.get_extra_info('peername')
@@ -251,7 +251,7 @@ class VdSConnection:
         self.buffer = b""
         self.timer_task = None
         self.poll_task = None
-        self.polling_interval = 5
+        self.polling_interval = polling_interval
         self.vds_request_counter = 0
         
         self.last_sent_rc = 0
@@ -595,7 +595,7 @@ class VdSConnection:
             _LOGGER.debug(f"Verarbeite Kontext-Satztyp 0x{typ:02X}, Länge {sl}")
             if typ == 0x56: # Identnummer
                 self.identnr = self.decode_ident(content)
-                _LOGGER.info(f"Gerät identifiziert ({self.peer}): {self.identnr}")
+                _LOGGER.info(f"Meldungseingang von ({self.peer}): ID: {self.identnr}")
                 packet_context["identnr"] = self.identnr
                 
                 matched_dev_config = None
@@ -776,11 +776,12 @@ class VdSConnection:
         self.send_queue.append(payload)
 
 class VdSAsyncServer:
-    def __init__(self, host, port, devices, event_callback):
+    def __init__(self, host, port, devices, event_callback, polling_interval=5):
         self.host = host
         self.port = port
         self.devices = devices
         self.event_callback = event_callback
+        self.polling_interval = polling_interval
         self.server = None
         self._connections = set()
 
@@ -810,7 +811,7 @@ class VdSAsyncServer:
             except Exception: pass
 
     async def handle_client(self, reader, writer):
-        conn = VdSConnection(reader, writer, self.devices, self.event_callback)
+        conn = VdSConnection(reader, writer, self.devices, self.event_callback, self.polling_interval)
         self._connections.add(conn)
         try:
             await conn.run()

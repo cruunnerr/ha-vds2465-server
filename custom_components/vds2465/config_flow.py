@@ -3,9 +3,9 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.const import CONF_PORT
 
-from .const import DOMAIN, DEFAULT_PORT, CONF_DEVICES, CONF_IDENTNR, CONF_KEYNR, CONF_KEY, CONF_ENCRYPT, CONF_VDS_DEVICE, CONF_VDS_AREA
+from .const import DOMAIN, DEFAULT_PORT, CONF_DEVICES, CONF_IDENTNR, CONF_KEYNR, CONF_KEY, CONF_ENCRYPT, CONF_VDS_DEVICE, CONF_VDS_AREA, CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL
 
-class VdSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class VdS2465ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
@@ -16,7 +16,8 @@ class VdSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
-                vol.Required(CONF_PORT, default=DEFAULT_PORT): int
+                vol.Required(CONF_PORT, default=DEFAULT_PORT): int,
+                vol.Required(CONF_POLLING_INTERVAL, default=DEFAULT_POLLING_INTERVAL): int
             }),
             errors=errors
         )
@@ -30,13 +31,35 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry):
         """Initialize options flow."""
         self.config_entry_local = config_entry
-        # WICHTIG: FlowHandler __init__ muss aufgerufen werden für internen Status
         super().__init__()
 
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
             step_id="init",
-            menu_options=["add_device", "remove_device"]
+            menu_options=["global_settings", "add_device", "remove_device"]
+        )
+
+    async def async_step_global_settings(self, user_input=None):
+        """Step to configure global settings."""
+        if user_input is not None:
+            # Global settings are stored in 'data' usually, but here we can merge into options
+            # to trigger a reload.
+            return self.async_create_entry(title="", data=user_input)
+
+        # Get current values from entry data or options
+        current_port = self.config_entry_local.data.get(CONF_PORT, DEFAULT_PORT)
+        current_interval = self.config_entry_local.data.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)
+        
+        # If they were already moved to options, use those
+        current_port = self.config_entry_local.options.get(CONF_PORT, current_port)
+        current_interval = self.config_entry_local.options.get(CONF_POLLING_INTERVAL, current_interval)
+
+        return self.async_show_form(
+            step_id="global_settings",
+            data_schema=vol.Schema({
+                vol.Required(CONF_PORT, default=current_port): int,
+                vol.Required(CONF_POLLING_INTERVAL, default=current_interval): int
+            })
         )
 
     async def async_step_add_device(self, user_input=None):

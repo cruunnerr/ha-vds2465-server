@@ -5,7 +5,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.const import CONF_PORT
 from homeassistant.helpers import device_registry as dr
-from .const import DOMAIN, CONF_DEVICES, EVENT_VDS_ALARM
+from .const import DOMAIN, CONF_DEVICES, EVENT_VDS_ALARM, CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL
 from .vds_lib import VdSAsyncServer
 
 _LOGGER = logging.getLogger(__name__)
@@ -16,12 +16,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up VdS 2465 from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
-    port = entry.data.get(CONF_PORT)
+    # Port and Interval can be in data (initial) or options (updates)
+    port = entry.options.get(CONF_PORT, entry.data.get(CONF_PORT))
+    interval = entry.options.get(CONF_POLLING_INTERVAL, entry.data.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL))
+    
     devices_raw = entry.options.get(CONF_DEVICES, {})
 
     # Cleanup orphaned devices BEFORE starting server
-    # This ensures that even if the server fails to bind (re-load issue), 
-    # the device registry is kept in sync with config.
     device_registry = dr.async_get(hass)
     device_entries = dr.async_entries_for_config_entry(device_registry, entry.entry_id)
     current_ident_nrs = {str(d["identnr"]) for d in devices_raw.values()}
@@ -33,12 +34,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 device_registry.async_remove_device(dev_entry.id)
                 break
     
-    # Baue Map für die Lib: KeyNr -> Config (nur für verschlüsselte Geräte nötig)
-    # Update: Wir übergeben nun alle Configs als Liste an die Lib, damit diese
-    # auch unverschlüsselte Geräte anhand der IdentNr validieren kann.
     devices_config_list = list(devices_raw.values())
 
-    hub = VdsHub(hass, port, devices_config_list)
+    hub = VdsHub(hass, port, interval, devices_config_list)
     
     # Start Server Task
     try:
@@ -81,11 +79,12 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
 
 class VdsHub:
     """Hub to handle VdS Server and entity callbacks."""
-    def __init__(self, hass, port, devices_config):
+    def __init__(self, hass, port, interval, devices_config):
         self.hass = hass
         self.port = port
+        self.interval = interval
         self.devices_config = devices_config
-        self.server = VdSAsyncServer("0.0.0.0", port, devices_config, self.handle_vds_event)
+        self.server = VdSAsyncServer("0.0.0.0", port, devices_config, self.handle_vds_event, interval)
         self._listeners = []
 
     async def start(self):

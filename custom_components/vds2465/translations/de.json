@@ -4,7 +4,8 @@
             "user": {
                 "title": "VdS 2465 Server Konfiguration",
                 "data": {
-                    "port": "Server Port (Standard: 4100)"
+                    "port": "Server Port (Standard: 4100)",
+                    "polling_interval": "Polling-Intervall (Sekunden)"
                 }
             }
         },
@@ -16,8 +17,16 @@
         "step": {
             "init": {
                 "menu_options": {
+                    "global_settings": "Globale Einstellungen (Port / Intervall)",
                     "add_device": "Gerät hinzufügen",
                     "remove_device": "Gerät entfernen"
+                }
+            },
+            "global_settings": {
+                "title": "Globale Einstellungen",
+                "data": {
+                    "port": "Server Port",
+                    "polling_interval": "Polling-Intervall (Sekunden)"
                 }
             },
             "add_device": {
