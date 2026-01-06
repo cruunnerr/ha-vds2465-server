@@ -5,7 +5,8 @@
                 "title": "VdS 2465 Server Configuration",
                 "data": {
                     "port": "Server Port (Standard: 4100)",
-                    "polling_interval": "Polling Interval (seconds)"
+                    "polling_interval": "Polling Interval (seconds)",
+                    "persist_states": "Restore states after restart"
                 }
             }
         },
@@ -17,8 +18,9 @@
         "step": {
             "init": {
                 "menu_options": {
-                    "global_settings": "Global Settings (Port / Interval)",
+                    "global_settings": "Global Settings (Port / Interval / Persistence)",
                     "add_device": "Add VdS Device",
+                    "edit_device": "Edit VdS Device",
                     "remove_device": "Remove VdS Device"
                 }
             },
@@ -26,7 +28,8 @@
                 "title": "Global Settings",
                 "data": {
                     "port": "Server Port",
-                    "polling_interval": "Polling Interval (seconds)"
+                    "polling_interval": "Polling Interval (seconds)",
+                    "persist_states": "Restore states after restart"
                 }
             },
             "add_device": {
@@ -38,6 +41,23 @@
                     "key": "AES Key (Hex 32-digit) - Required if encrypted",
                     "vds_device": "Device number (Standard = 1)",
                     "vds_area": "Area number (Standard = 1)"
+                }
+            },
+            "edit_device": {
+                "title": "Select device to edit",
+                "data": {
+                    "device_to_edit": "Select Device"
+                }
+            },
+            "edit_device_details": {
+                "title": "Edit details for device {ident}",
+                "data": {
+                    "identnr": "Ident number (Cannot be changed)",
+                    "encrypted": "Enable Encryption (AES-128)",
+                    "keynr": "Key number (VdS-KeyNr.)",
+                    "key": "AES Key (HEX format)",
+                    "vds_device": "Device number",
+                    "vds_area": "Area number"
                 }
             },
             "remove_device": {
