@@ -1,6 +1,6 @@
 # VdS 2465 Server for Home Assistant
 
-This Home Assistant custom component implements a **VdS 2465 Server**. It allows your Home Assistant instance to act as a receiver (receiving center/NSL) for alarm systems using the VdS 2465 protocol over IP (e.g., Honeywell/Novar, Telenot, etc.).
+This Home Assistant custom component implements a **VdS 2465 Server**. It allows your Home Assistant instance to act as a receiver (receiving center/NSL) for alarm systems using the VdS 2465 protocol over IP.
 
 ---
 

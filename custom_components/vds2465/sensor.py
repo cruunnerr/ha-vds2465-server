@@ -11,26 +11,26 @@ _LOGGER = logging.getLogger(__name__)
 
 # Persistent device-level attributes
 VDS_PERSISTENT_ATTRIBUTES = [
-    "identnr",
-    "area_name",
-    "manufacturer"
+    "identnr"
 ]
 
 # Message-specific attributes that should reset to '-' if not in current message
 VDS_MESSAGE_ATTRIBUTES = [
-    "entstehungszeit",
-    "priority",
-    "transport_service",
-    "telegram_counter",
+    "text",
     "geraet",
     "bereich",
     "adresse",
     "code",
-    "text",
     "type",
-    "msg_text",
+    "zustand",
     "quelle",
-    "zustand"
+    "entstehungszeit",
+    "priority",
+    "transport_service",
+    "telegram_counter",
+    "area_name",
+    "manufacturer",
+    "msg_text"
 ]
 
 async def async_setup_entry(

@@ -271,15 +271,14 @@ class VdSConnection:
                 await self.controller(ACTION_DATA)
                 
         except ConnectionResetError:
-            _LOGGER.info("Verbindung zurückgesetzt")
+            _LOGGER.info(f"Verbindung von {self.peer} zurückgesetzt")
         except Exception as e:
-            _LOGGER.error(f"Fehler in Verbindung: {e}", exc_info=True)
+            _LOGGER.error(f"Fehler in Verbindung {self.peer}: {e}", exc_info=True)
         finally:
             await self.disconnect()
 
     async def disconnect(self):
         if not self._running:
-            # Already disconnected or disconnecting
             return
         
         self._running = False
@@ -295,24 +294,23 @@ class VdSConnection:
         
         try:
             self.writer.close()
-            # Wait with timeout for close
             try:
                 await asyncio.wait_for(self.writer.wait_closed(), timeout=1.0)
             except asyncio.TimeoutError:
-                _LOGGER.warning("Timeout waiting for writer close")
+                _LOGGER.warning(f"Timeout beim Schließen der Verbindung zu {self.peer}")
         except (ConnectionResetError, BrokenPipeError, AttributeError, OSError) as e:
-            _LOGGER.debug(f"Error closing writer: {e}")
+            _LOGGER.debug(f"Fehler beim Schließen des Writers ({self.peer}): {e}")
         except Exception as e:
-             _LOGGER.warning(f"Unexpected error closing writer: {e}")
+             _LOGGER.warning(f"Unerwarteter Fehler beim Schließen des Writers ({self.peer}): {e}")
 
     async def send(self, data):
         self.last_send_buffer = data
-        # _LOGGER.debug(f"TX: {binascii.hexlify(data)}")
+        _LOGGER.debug(f"TX ({self.peer}): {binascii.hexlify(data).upper()}")
         try:
             self.writer.write(data)
             await self.writer.drain()
         except Exception as e:
-             _LOGGER.warning(f"Senden fehlgeschlagen: {e}")
+             _LOGGER.warning(f"Senden an {self.peer} fehlgeschlagen: {e}")
              await self.disconnect()
 
     def get_device_by_keynr(self, keynr):
@@ -357,6 +355,7 @@ class VdSConnection:
         return header + payload
 
     async def send_ik1(self):
+        _LOGGER.debug(f"Sende IK1 (Verbindungsaufbau) an {self.peer}")
         buf = bytearray(14)
         struct.pack_into('>I', buf, 0, self.tc)
         self.tc = (self.tc + 1) & 0xFFFFFFFF
@@ -369,6 +368,7 @@ class VdSConnection:
         await self.send(self.prepare_packet(buf))
 
     async def send_ik3(self):
+        _LOGGER.debug(f"Sende IK3 (Poll) an {self.peer}")
         buf = bytearray(13)
         struct.pack_into('>I', buf, 0, self.tc)
         self.tc = (self.tc + 1) & 0xFFFFFFFF
@@ -381,6 +381,7 @@ class VdSConnection:
         await self.send(self.prepare_packet(buf))
 
     async def send_ik4(self, payload):
+        _LOGGER.debug(f"Sende IK4 (Daten) an {self.peer}, Payload-Länge: {len(payload)}")
         l_byte = len(payload)
         buf = bytearray(13)
         struct.pack_into('>I', buf, 0, self.tc)
@@ -394,6 +395,7 @@ class VdSConnection:
         await self.send(self.prepare_packet(buf + payload))
 
     async def send_ik5(self):
+        _LOGGER.debug(f"Sende IK5 (Ack) an {self.peer}")
         buf = bytearray(13)
         struct.pack_into('>I', buf, 0, self.tc)
         self.tc = (self.tc + 1) & 0xFFFFFFFF
@@ -404,6 +406,7 @@ class VdSConnection:
         await self.send(self.prepare_packet(buf))
 
     async def send_ik6(self):
+        _LOGGER.debug(f"Sende IK6 (Nak) an {self.peer}")
         buf = bytearray(13)
         struct.pack_into('>I', buf, 0, self.tc)
         self.tc = (self.tc + 1) & 0xFFFFFFFF
@@ -427,10 +430,10 @@ class VdSConnection:
                 
                 total_len = 4 + sl
                 if len(self.buffer) < total_len:
-                    break # Wait for more data
+                    break # Warten auf restliche Daten
                 
                 packet_data = self.buffer[4:total_len]
-                # _LOGGER.debug(f"RX Header: KeyNr={key_nr}, Len={sl}")
+                _LOGGER.debug(f"RX Header ({self.peer}): KeyNr={key_nr}, Len={sl}")
                 
                 self.buffer = self.buffer[total_len:]
                 self.key_nr_rec = key_nr
@@ -438,10 +441,11 @@ class VdSConnection:
                 if key_nr > 0:
                     dev = self.get_device_by_keynr(key_nr)
                     if dev:
+                        _LOGGER.debug(f"Entschlüssele Paket mit KeyNr {key_nr}")
                         self.device_config = dev
                         decrypted = self.decrypt(packet_data)
                     else:
-                        _LOGGER.warning(f"Unbekannte KeyNr: {key_nr}")
+                        _LOGGER.warning(f"Unbekannte KeyNr {key_nr} von {self.peer}")
                         await self.disconnect()
                         return
                 else:
@@ -474,19 +478,18 @@ class VdSConnection:
         elif action == ACTION_IK3_AFTER_POLL:
             if self.poll_task: self.poll_task.cancel()
             
-            # VdS Service Request Logic (Burst Mode)
             if self.vds_request_counter > 0:
+                _LOGGER.debug(f"Burst Mode: {self.vds_request_counter} verbleibend")
                 await self.send_ik3()
                 self.vds_request_counter -= 1
-                # Do not trigger next cycle immediately; wait for response
-                # self.poll_task = asyncio.create_task(self.controller(ACTION_IK3_AFTER_POLL)) 
             else:
                 self.poll_task = asyncio.create_task(self.wait_and_poll())
 
         elif action == ACTION_TIMER_EXPIRED:
             self.send_counter += 1
+            _LOGGER.debug(f"Timer abgelaufen für {self.peer}, Wiederholung {self.send_counter}")
             if self.send_counter > 3:
-                _LOGGER.warning("Timeout: Zu viele Wiederholungen, trenne Verbindung")
+                _LOGGER.warning(f"Timeout nach 3 Wiederholungen ({self.peer})")
                 await self.disconnect()
                 return
             if self.last_send_buffer:
@@ -494,7 +497,6 @@ class VdSConnection:
             self.reset_timer()
 
     async def wait_and_poll(self):
-        # Nur Pollen wenn konfiguriert
         if self.device_config and not self.device_config.get("stehend", True):
             return
         await asyncio.sleep(self.polling_interval)
@@ -510,7 +512,7 @@ class VdSConnection:
 
     def process_packet(self, data):
         if not check_crc16(data):
-            _LOGGER.warning("CRC Error")
+            _LOGGER.warning(f"CRC Fehler im Paket von {self.peer}")
             return False
             
         offset = 0
@@ -522,16 +524,16 @@ class VdSConnection:
         ik = data[10]; pk = data[11]; l = data[12]
         offset += 3
         
-        # _LOGGER.debug(f"RX Parsed: TC={self.tc_rec}, RC={self.rc_rec}, IK={ik}")
+        _LOGGER.debug(f"RX Parsed ({self.peer}): TC={self.tc_rec:08X}, RC={self.rc_rec:08X}, IK={ik}, PK={pk}, L={l}")
         
         if pk != 1:
+            _LOGGER.warning(f"Ungültige PK {pk} von {self.peer}")
             asyncio.create_task(self.controller(ACTION_IK6))
             return False
 
         self.send_counter = 0
         
         if ik == 1: 
-            # Poll received - answer with Data if available, else Poll back delayed
             if self.send_queue:
                 asyncio.create_task(self.controller(ACTION_IK4))
             else:
@@ -539,7 +541,6 @@ class VdSConnection:
             return True
             
         elif ik == 2:
-            # Ack received - send next Data if available, else Poll back immediately
             if self.send_queue:
                 asyncio.create_task(self.controller(ACTION_IK4))
             else:
@@ -554,6 +555,7 @@ class VdSConnection:
             return True
         elif ik == 4:
             payload = data[offset:offset+l]
+            _LOGGER.debug(f"RX Payload ({self.peer}): {binascii.hexlify(payload).upper()}")
             self.parse_vds_payload(payload)
             if self.send_queue:
                 asyncio.create_task(self.controller(ACTION_IK4))
@@ -561,13 +563,11 @@ class VdSConnection:
                 asyncio.create_task(self.controller(ACTION_IK3_AFTER_POLL))
             return True
         elif ik == 7:
-            # VdS Service Request: Reset counter in packet if needed and trigger burst
             expected_tc = (self.last_sent_rc - 1) & 0xFFFFFFFF
             if self.tc_rec != expected_tc:
-                _LOGGER.debug(f"IK7: Zaehler TC von {self.tc_rec:X} in {expected_tc:X} korrigiert")
+                _LOGGER.debug(f"IK7: Zaehler TC korrigiert von {self.tc_rec:X} auf {expected_tc:X}")
                 self.tc_rec = expected_tc
             
-            # Start Burst Mode (5 quick polls)
             self.vds_request_counter = 5
             if self.poll_task: self.poll_task.cancel()
             asyncio.create_task(self.send_ik3())
@@ -579,7 +579,6 @@ class VdSConnection:
     def parse_vds_payload(self, data):
         offset = 0
         records = []
-        # First, split into individual records
         while offset < len(data):
             if offset + 2 > len(data): break
             sl = data[offset]
@@ -591,36 +590,29 @@ class VdSConnection:
             records.append((typ, content, sl))
             offset += sl
 
-        # Extract context from this packet bundle
         packet_context = {}
         for typ, content, sl in records:
+            _LOGGER.debug(f"Verarbeite Kontext-Satztyp 0x{typ:02X}, Länge {sl}")
             if typ == 0x56: # Identnummer
                 self.identnr = self.decode_ident(content)
-                _LOGGER.info(f"Gerät Identifiziert: {self.identnr}")
+                _LOGGER.info(f"Gerät identifiziert ({self.peer}): {self.identnr}")
                 packet_context["identnr"] = self.identnr
                 
-                # Verify Key matches Ident configuration
-                # Find device config by Ident to check KeyNr
                 matched_dev_config = None
                 matched_keynr = 0
                 
                 for conf in self.devices_config:
                     if conf.get('identnr') == self.identnr:
                         matched_dev_config = conf
-                        # Get KeyNr if exists, else 0
                         matched_keynr = int(conf.get('keynr', 0))
                         break
                 
                 if matched_dev_config:
-                    # Update device config reference for future polling settings etc.
                     self.device_config = matched_dev_config
-                    
                     if self.key_nr_rec != matched_keynr:
-                        # Only warn if mismatched. 0 vs 0 is fine.
-                        _LOGGER.warning(f"Verbindung bei {self.identnr} mit KeyNr:{self.key_nr_rec}, erwartet:{matched_keynr}")
+                        _LOGGER.warning(f"Mismatch ({self.identnr}): KeyNr {self.key_nr_rec} empfangen, {matched_keynr} erwartet")
                 else:
-                     _LOGGER.warning(f"Unbekannte Identnummer: {self.identnr}, trenne Verbindung.")
-                     # Disconnect unknown devices
+                     _LOGGER.warning(f"Unbekannte Identnummer {self.identnr} von {self.peer}")
                      asyncio.create_task(self.disconnect())
                      return
 
@@ -631,15 +623,12 @@ class VdSConnection:
                 try:
                     m_str = content.strip(b'\x00').decode('iso-8859-1')
                     packet_context["manufacturer"] = m_str
-                    _LOGGER.debug(f"Manufacturer context: {m_str}")
                 except Exception: pass
 
             elif typ == 0x54: # Area Name
                 try:
-                    # Clean up control characters like \r
                     a_str = content.strip(b'\x00').decode('iso-8859-1').replace('\r', ' ').strip()
                     packet_context["area_name"] = a_str
-                    _LOGGER.debug(f"Area name context: {a_str}")
                 except Exception: pass
 
             elif typ == 0x50: # Zeit / Entstehungszeit
@@ -648,7 +637,6 @@ class VdSConnection:
                         year = content[0] + content[1]*100
                         dt = datetime.datetime(year, content[2], content[3], content[4], content[5], content[6])
                         packet_context["entstehungszeit"] = dt.strftime("%d.%m.%Y, %H:%M:%S")
-                        _LOGGER.debug(f"Entstehungszeit context: {packet_context['entstehungszeit']}")
                 except Exception: pass
 
             elif typ == 0x01: # Priorität
@@ -666,18 +654,16 @@ class VdSConnection:
             elif typ == 0x73: # Telegrammzähler
                 try:
                     if len(content) >= 5:
-                        # Byte 0: Gerät/Bereich, Byte 1-4: Zähler (Big Endian)
                         counter = struct.unpack('>I', content[1:5])[0]
                         packet_context["telegram_counter"] = counter
-                        _LOGGER.debug(f"VdS Telegrammzähler empfangen: {counter}")
                 except Exception: pass
             
             elif typ == 0x41: # Quittung Testmeldung
-                _LOGGER.debug(f"VdS Quittung Testmeldung empfangen (Satz 0x41)")
+                _LOGGER.debug(f"VdS Quittung Testmeldung empfangen")
 
-        # Now process actions with the collected context
         for typ, content, sl in records:
-            if typ == 0x02 or typ == 0x03 or typ == 0x04 or typ == 0x20: # Meldung (Alarm) / Status
+            _LOGGER.debug(f"Verarbeite Aktions-Satztyp 0x{typ:02X}, Länge {sl}")
+            if typ == 0x02 or typ == 0x03 or typ == 0x04 or typ == 0x20: # Meldung / Status
                 if len(content) >= 5:
                     geraet = (content[0] >> 4) & 0x0F
                     bereich = content[0] & 0x0F
@@ -697,10 +683,9 @@ class VdSConnection:
                         "code": meldungsart,
                         "text": VDS_MESSAGES.get(meldungsart, f"Unbekannt ({meldungsart})"),
                         "type": msg_type_text,
-                        **packet_context # Include Area Name and Manufacturer
+                        **packet_context
                     }
                     
-                    # Try to extract text from 0x02 itself if present
                     if len(content) > 10: 
                         try:
                             potential_text = content[5:].strip(b'\x00').decode('iso-8859-1')
@@ -715,11 +700,9 @@ class VdSConnection:
                         event_data["quelle"] = "Ausgang"
                         event_data["zustand"] = "Ein" if meldungsart < 128 else "Aus"
                     
-                    _LOGGER.info(f"{msg_type_text} with context: {event_data}")
                     if self.event_callback:
                         self.event_callback("alarm", event_data)
 
-                    # Quittung nur bei 0x02
                     if typ == 0x02:
                         ack_record = bytearray([sl, 0x03] + list(content))
                         self.send_queue.append(ack_record)
@@ -729,18 +712,16 @@ class VdSConnection:
                     geraet = (content[0] >> 4) & 0x0F
                     err_code = content[1]
                     err_text = VDS_ERRORS.get(err_code, f"Unbekannter Fehler {err_code}")
-                    _LOGGER.warning(f"VdS Fehler empfangen: {err_text} (Code: {err_code}, Geraet: {geraet})")
+                    _LOGGER.warning(f"VdS Fehler ({self.identnr}): {err_text} (Code: {err_code}, Geraet: {geraet})")
                     if self.event_callback:
                         self.event_callback("error", {"identnr": self.identnr, "code": err_code, "text": err_text})
 
             elif typ == 0x40: # Testmeldung
                 if self.event_callback:
                     self.event_callback("status", {"identnr": self.identnr, "keynr": self.key_nr_rec, "msg": "Testmeldung", **packet_context})
-                # Quittung mit 0x41 + Zeit (Satz 0x50)
                 ack_head = bytearray([0, 0x41])
                 time_buf = get_time_buffer()
                 ack_payload = ack_head + time_buf
-                
                 self.send_queue.append(ack_payload)
 
             elif typ == 0x51 and self.event_callback:
@@ -750,33 +731,29 @@ class VdSConnection:
                 self.event_callback("area_update", {"identnr": self.identnr, "area_name": packet_context.get("area_name")})
 
             elif typ == 0x59: # Geraetemerkmale
-                # Parse TLV style: Len, Typ, Index, Text
-                sub_offset = 1 # Skip Geraet byte
+                sub_offset = 1
                 features = {}
                 while sub_offset < len(content):
                     if sub_offset + 3 > len(content): break
                     l_sub = content[sub_offset]
                     t_sub = content[sub_offset+1]
                     i_sub = content[sub_offset+2]
-                    
                     if sub_offset + l_sub > len(content): break
-                    
                     val_bytes = content[sub_offset+3 : sub_offset+l_sub]
                     try:
-                        val_str = val_bytes.decode('iso-8859-1')
+                        val_str = val_bytes.decode('iso-8859-1').strip('\x00')
                         label = f"Unknown-{t_sub}"
                         if t_sub == 0: label = "MAC"
                         elif t_sub == 1: label = "IMEI"
-                        elif t_sub == 2: label = "SIM"
-                        elif t_sub == 3: label = "Tel"
+                        elif t_sub == 2: label = "SIM-Kartennummer"
+                        elif t_sub == 3: label = "Rufnummer"
+                        elif t_sub == 0xFF: label = "herstellerspezifisch"
                         
                         path = "Erstweg" if i_sub == 1 else "Zweitweg"
                         features[f"{label}-{path}"] = val_str
                     except Exception: pass
-                    
                     sub_offset += l_sub
                 
-                _LOGGER.info(f"Geraetemerkmale: {features}")
                 if self.event_callback and features:
                     self.event_callback("features_update", {"identnr": self.identnr, "features": features})
 
@@ -790,26 +767,19 @@ class VdSConnection:
 
     def send_output_command(self, address, state, device=1, area=1):
         payload = bytearray(7)
-        payload[0] = 5 # L
-        payload[1] = 0x02 # T
-        
-        # Geraet (High Nibble) / 
-        # Bereich (Low Nibble)
+        payload[0] = 5; payload[1] = 0x02
         gebe = ((device << 4) & 0xF0) | (area & 0x0F)
         payload[2] = gebe
-        
         payload[3] = address & 0xFF
-        payload[4] = 0x00 # Adresszusatz
-        payload[5] = 0x02 # Adresserweiterung (Ausgang)
-        payload[6] = 0x00 if state else 0x80 # Meldungsart
-        
+        payload[4] = 0x00; payload[5] = 0x02
+        payload[6] = 0x00 if state else 0x80
         self.send_queue.append(payload)
 
 class VdSAsyncServer:
     def __init__(self, host, port, devices, event_callback):
         self.host = host
         self.port = port
-        self.devices = devices # {keynr: config_dict}
+        self.devices = devices
         self.event_callback = event_callback
         self.server = None
         self._connections = set()
@@ -818,39 +788,26 @@ class VdSAsyncServer:
         self.server = await asyncio.start_server(
             self.handle_client, self.host, self.port, reuse_address=True
         )
-        _LOGGER.info(f"VdS Server gestartet auf {self.port}")
+        _LOGGER.info(f"VdS Server gestartet auf Port {self.port}")
         return self.server
 
     async def stop(self):
         _LOGGER.debug("VdSAsyncServer.stop() called")
-        
-        # 1. Stop accepting new connections
         if self.server:
             _LOGGER.debug("Closing server socket (stop accepting)...")
             self.server.close()
-        
-        # 2. Close active connections forcefully
         if self._connections:
             _LOGGER.info(f"Closing {len(self._connections)} active connections")
             for conn in list(self._connections):
                 try:
                     await conn.disconnect()
-                except Exception as e:
-                    _LOGGER.error(f"Error closing connection during stop: {e}")
+                except Exception: pass
             self._connections.clear()
-            
-        # 3. Wait for server socket to close (with timeout)
         if self.server:
             try:
-                # Wait max 2 seconds
                 await asyncio.wait_for(self.server.wait_closed(), timeout=2.0)
                 _LOGGER.debug("Server socket closed")
-            except asyncio.TimeoutError:
-                 _LOGGER.warning("Timeout waiting for server to close")
-            except Exception as e:
-                _LOGGER.warning(f"Error waiting for server close: {e}")
-
-        _LOGGER.debug("VdSAsyncServer.stop() finished")
+            except Exception: pass
 
     async def handle_client(self, reader, writer):
         conn = VdSConnection(reader, writer, self.devices, self.event_callback)
