@@ -19,6 +19,7 @@ The integration supports encrypted communication (AES), persistent and demand-co
 * **AES Encryption support**.
 * **Switch outputs** on the transmission device (ÜG).
 * **Automatic sensor creation** when a new channel (address) is received.
+* **State Persistence**: Optional recovery of sensor states and attributes after a Home Assistant restart.
 * **Entities per Device**:
     * `binary_sensor`: Connection Status (Online/Offline).
     * `sensor`: Last Message (Readable text).
@@ -28,7 +29,7 @@ The integration supports encrypted communication (AES), persistent and demand-co
 
 * **Events**: Fires `vds2465_alarm` events for every valid packet received, allowing for complex automations.
 * **Multi-Device Support**: Connect multiple alarm panels or transmission devices to a single server instance. Unique assignment via Ident number and key.
-* **Configurable via UI**: Easy setup of keys, device identifiers, and ports.
+* **Configurable via UI**: Easy setup of keys, device identifiers, polling intervals, and ports.
 
 ## How to Install
 
@@ -55,20 +56,26 @@ The integration supports encrypted communication (AES), persistent and demand-co
 1. Go to **Settings** -> **Devices & Services**.
 2. Click **Add Integration** and search for **VdS 2465 Server**.
 3. **Server Port**: Enter the port you want the server to listen on (Default: `4100`).
+4. **Polling Interval**: Set how often the server polls the alarm panel (Default: `5s`). Lower values reduce latency.
+5. **Restore States**: Enable to keep the last received sensor values and attributes after a restart.
 
-### 2. Add Devices (Alarm Panels)
+### 2. Manage Devices (Alarm Panels)
 
 Once the integration is added, you must register your alarm panels so HA can decrypt their messages.
 
 1. Find the **VdS 2465 Server** integration card.
 2. Click **Configure** (gear icon).
-3. Select **Add VdS Device** (Gerät hinzufügen).
-4. Enter the details from your alarm panel configuration:
-    * **Ident number (Identnummer)**: The account number sent by the panel (e.g., `123456`).
-    * **Key number (Schlüsselnummer)**: The index of the key used (often `1` or matching the VdS-ID). Leave blank for unencrypted connections.
-    * **AES Key**: The 32-character hexadecimal key used for encryption. (Only required for encrypted connections).
-    * **Device Number**: Important for switching outputs on the transmission device. (Default: 1).
-    * **Area Number**: Important for switching outputs on the transmission device. (Default: 1).
+3. **Global Settings**: Update port, interval, or persistence.
+4. **Add VdS Device**: Add a new alarm panel.
+5. **Edit VdS Device**: View or modify existing devices (including the AES key in plain text).
+6. **Remove VdS Device**: Delete a registered device.
+
+**Device details required:**
+* **Ident number (Identnummer)**: The account number sent by the panel (e.g., `123456`).
+* **Key number (Schlüsselnummer)**: The index of the key used. Leave blank for unencrypted connections.
+* **AES Key**: The 32-character hexadecimal key used for encryption.
+* **Device Number**: Important for switching outputs. (Default: 1).
+* **Area Number**: Important for switching outputs. (Default: 1).
 
 ### 3. Configure your Alarm Panel
 
@@ -116,10 +123,10 @@ For each configured device, the following entities are created:
     * Timestamp of the last successful routine test message (Routine call).
 
 * **`sensor.vds_[ident]_manufacturer_id`**:
-    * Displays the manufacturer identification string sent by the device during connection or messaging.
+    * Displays the manufacturer identification string.
 
 * **Auto-generated Sensors**:
-    * When a message is received, another sensor is automatically generated based on the incoming address (channel number).
+    * Sensors for individual channels (addresses) and output acknowledgments are created automatically upon reception and survive restarts.
     * When switching outputs, the transmission device sends feedback upon success. A sensor is generated for this "Acknowledgement message".
 
 ### Events
@@ -179,20 +186,20 @@ Die Integration unterstützt verschlüsselte Kommunikation (AES), stehende und b
 ## Funktionen
 
 * **Empfang von VdS 2465 Nachrichten** direkt in Home Assistant.
-* **Unterstützung für AES-Verschlüsselung**
-* **Schalten von Ausgängen am Übertragungsgerät**
-* **Automatisches Anlegen von neuen Sensoren bei Empfang eines neuen Kanals**
+* **Unterstützung für AES-Verschlüsselung**.
+* **Schalten von Ausgängen am Übertragungsgerät**.
+* **Automatisches Anlegen von neuen Sensoren** bei Empfang eines neuen Kanals.
+* **Zustandsspeicherung**: Optionale Wiederherstellung von Sensorwerten und Attributen nach einem Home Assistant Neustart.
 * **Entitäten pro Gerät**:
-* `binary_sensor`: Verbindungsstatus (Online/Offline).
-* `sensor`: Letzte Meldung (Lesbarer Text).
-* `sensor`: Letzter Routineruf (Zeitstempel).
-* `sensor`: Hersteller-ID.
-* `switch`: Ausgänge
-
+    * `binary_sensor`: Verbindungsstatus (Online/Offline).
+    * `sensor`: Letzte Meldung (Lesbarer Text).
+    * `sensor`: Letzter Routineruf (Zeitstempel).
+    * `sensor`: Hersteller-ID.
+    * `switch`: Ausgänge.
 
 * **Events**: Feuert `vds2465_alarm` Events für jedes empfangene Paket, was komplexe Automatisierungen ermöglicht.
-* **Multi-Geräte-Unterstützung**: Verbinde mehrere Alarmanlagen/Übertragungsgeräte mit einer Server-Instanz. Eindeutige Zuordnung durch Identnummer und Schlüssel.
-* **Konfigurierbar über die Benutzeroberfläche**: Einfache Einrichtung von Schlüsseln und Gerätekennungen.
+* **Multi-Geräte-Unterstützung**: Verbinde mehrere Alarmanlagen/Übertragungsgeräte mit einer Server-Instanz.
+* **Konfigurierbar über die Benutzeroberfläche**: Einfache Einrichtung von Schlüsseln, Intervallen und Ports.
 
 ## Installation
 
@@ -201,10 +208,9 @@ Die Integration unterstützt verschlüsselte Kommunikation (AES), stehende und b
 1. Öffne **HACS** in Home Assistant.
 2. Gehe zu "Integrationen" -> "Benutzerdefinierte Repositories" (über die 3 Punkte in der oberen rechten Ecke).
 3. Füge die URL dieses Repositories hinzu: `https://github.com/cruunnerr/ha-vds2465-server`.
-4. Wähle die Kategorie **Integration**.
-5. Klicke auf **Hinzufügen**.
-6. Suche nach **VdS 2465 Server** und installiere ihn.
-7. **Starte Home Assistant neu**.
+4. Wähle die Kategorie **Integration** und klicke auf **Hinzufügen**.
+5. Suche nach **VdS 2465 Server** und installiere ihn.
+6. **Starte Home Assistant neu**.
 
 ### Option 2: Manuelle Installation
 
@@ -218,23 +224,25 @@ Die Integration unterstützt verschlüsselte Kommunikation (AES), stehende und b
 
 1. Gehe zu **Einstellungen** -> **Geräte & Dienste**.
 2. Klicke auf **Integration hinzufügen** und suche nach **VdS 2465 Server**.
-3. **Server Port**: Gib den Port ein, auf dem der Server lauschen soll (Standard: `4100`).
+3. **Server Port**: Port für den VdS-Server (Standard: `4100`).
+4. **Polling-Intervall**: Legt fest, wie oft der Server die EMA abfragt (Standard: `5s`). Kleinere Werte reduzieren die Latenz.
+5. **Zustände wiederherstellen**: Aktivieren, um die letzten Sensordaten nach einem Neustart zu behalten.
 
-### 2. Geräte hinzufügen (Alarmanlagen)
+### 2. Geräte verwalten (Alarmanlagen)
 
-Sobald die Integration hinzugefügt wurde, musst du deine Alarmanlagen registrieren, damit HA deren Nachrichten entschlüsseln kann.
+Sobald die Integration hinzugefügt wurde, musst du deine Alarmanlagen registrieren.
 
-1. Suche die **VdS 2465 Server** Integrationskarte.
-2. Klicke auf **Konfigurieren** (Zahnradsymbol).
-3. Wähle **Add VdS Device** (Gerät hinzufügen).
-4. Gib die Details aus der Konfiguration deiner Alarmanlage ein:
-* **Identnummer (Ident number)**: Die von der Anlage gesendete Kontonummer (z. B. `123456`).
-* **Schlüsselnummer (Key number)**: Der Index des verwendeten Schlüssels (oft `1` oder passend zur VdS-ID). Bei unverschlüsselten Verbindungen Feld leer lassen.
-* **AES Key**: Der 32-stellige Hexadezimal-Schlüssel, der für die Verschlüsselung verwendet wird. (Nur nötig bei verschlüsselten Verbindungen)
-* **Gerätenummer**: Wichtig zum Schalten der Ausgänge am Übertragungsgerät. (Standardwert 1)
-* **Bereichsnummer**: Wichtig zum Schalten der Ausgänge am Übertragungsgerät. (Standardwert 1)
+1. Suche die **VdS 2465 Server** Integrationskarte und klicke auf **Konfigurieren**.
+2. **Globale Einstellungen**: Port, Intervall oder Speicherung anpassen.
+3. **Gerät hinzufügen**: Eine neue EMA registrieren.
+4. **Gerät bearbeiten**: Vorhandene Geräte ansehen (inkl. AES-Key im Klartext) oder ändern.
+5. **Gerät entfernen**: Ein registriertes Gerät löschen.
 
-
+**Benötigte Gerätedaten:**
+* **Identnummer**: Die Kontonummer der Anlage (z. B. `123456`).
+* **Schlüsselnummer**: Der Index des verwendeten Schlüssels.
+* **AES Key**: Der 32-stellige Hexadezimal-Schlüssel für die Verschlüsselung.
+* **Gerätenummer / Bereichsnummer**: Wichtig für das Schalten von Ausgängen.
 
 ### 3. Alarmanlage konfigurieren
 
@@ -242,26 +250,17 @@ Konfiguriere das IP-Übertragungsgerät (ÜG) deiner Alarmanlage für den Versan
 
 * **Protokoll**: VdS 2465-S2.
 * **Ziel-IP**: Die IP-Adresse deines Home Assistant.
-* **Ziel-Port**: `4100` (oder was auch immer konfiguriert wurde).
-* **Verschlüsselung**: Je nach Bedarf
-* **AES-Schlüssel (HEX-Format, 32-stellig)**: Muss mit dem in HA eingegebenen Schlüssel übereinstimmen.
+* **Ziel-Port**: `4100` (oder konfigurierten Port).
+* **AES-Schlüssel (HEX-Format)**: Muss mit dem in HA eingegebenen Schlüssel übereinstimmen.
 * **Ident/Kontonummer**: Muss mit der Identnummer in HA übereinstimmen.
 
 ## Verwendung
 
 ### Entitäten
 
-Für jedes konfigurierte Gerät werden die folgenden Entitäten erstellt:
-
-* **`binary_sensor.vds_[ident]_status`**:
-* **An (On)**: Gerät ist verbunden und authentifiziert.
-* **Aus (Off)**: Verbindung zum Gerät ist getrennt.
-(Bei stehenden Verbidnungen sollte der Zustand ständig "Verbunden" sein. Somit kann ein Ausfall schnell detektiert werden.)
-
-
-* **`sensor.vds_[ident]_last_message`**:
-* Zeigt den Text des zuletzt empfangenen Ereignisses (z. B. "Einbruch - Ausgelöst").
-* Attribute enthalten Rohdaten , welche mit der Nachricht geschickt wurden - zum Beispiel:
+* **`binary_sensor.vds_[ident]_status`**: Online/Offline-Status der Verbindung.
+* **`sensor.vds_[ident]_last_message`**: Zeigt den Text des zuletzt empfangenen Ereignisses (z. B. "Einbruch - Ausgelöst").
+Attribute enthalten Rohdaten , welche mit der Nachricht geschickt wurden - zum Beispiel:
     - Identnr
     - Keynr
     - Geraetenummer
@@ -278,24 +277,14 @@ Für jedes konfigurierte Gerät werden die folgenden Entitäten erstellt:
     - Zustand (An oder Aus)
     - Msg (z.B. Testmeldung)
     - Transport service (Art der Übertragung, z.B. TCP/IP-Intranet-Uebertragung)
-
-
-* **`sensor.vds_[ident]_last_test_message`**:
-* Zeitstempel der letzten erfolgreichen Routinetestmeldung (Routineruf).
-
-
-* **`sensor.vds_[ident]_manufacturer_id`**:
-* Zeigt die Herstellerkennung an, die das Gerät beim Verbindungsaufbau/Meldung sendet.
-
-* **Automatisch generierte Sensoren**:
-* Bei Meldungseingang wird bezogen auf die ankommende Adresse (Kanalnummer) automatisch ein weiterer Sensor generiert.
-* Beim Schalten von Ausgängen schickt das Übertragungsgerät eine Rückmeldung über den erfolgreichen Schaltvorgang. Es wird ein Sensor für diese "Quittiermeldung" generiert.
-
-
+* **`sensor.vds_[ident]_last_test_message`**: Zeitstempel des letzten erfolgreichen Routinerufs.
+* **`sensor.vds_[ident]_manufacturer_id`**: Herstellerkennung des Geräts.
+* **Automatisch generierte Sensoren**: Sensoren für einzelne Kanäle (Adressen) und Ausgangs-Rückmeldungen werden automatisch erstellt und bleiben über Neustarts hinweg erhalten.
+Beim Schalten von Ausgängen schickt das Übertragungsgerät eine Rückmeldung über den erfolgreichen Schaltvorgang. Es wird ein Sensor für diese "Quittiermeldung" generiert.
 
 ### Events
 
-Die Integration feuert ein `vds2465_alarm` Event für jedes empfangene gültige Paket. Dies kann für Automatisierungen genutzt werden.
+Die Integration feuert ein `vds2465_alarm` Event für jedes empfangene Paket.
 
 **Beispiel für Event-Daten:**
 
@@ -314,7 +303,6 @@ Die Integration feuert ein `vds2465_alarm` Event für jedes empfangene gültige 
         "zustand": "Ein"
     }
 }
-
 ```
 
 ### Beispiel Automatisierung
@@ -332,10 +320,7 @@ action:
   - service: notify.mobile_app_meinhandy
     data:
       message: "Alarm im Bereich {{ trigger.event.data.bereich }} ausgelöst!"
-
 ```
-
-
 
 </details>
 

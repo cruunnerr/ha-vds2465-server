@@ -4,7 +4,9 @@
             "user": {
                 "title": "VdS 2465 Server Konfiguration",
                 "data": {
-                    "port": "Server Port (Standard: 4100)"
+                    "port": "Server Port (Standard: 4100)",
+                    "polling_interval": "Polling-Intervall (Sekunden)",
+                    "persist_states": "Zustände nach Neustart wiederherstellen"
                 }
             }
         },
@@ -16,8 +18,18 @@
         "step": {
             "init": {
                 "menu_options": {
+                    "global_settings": "Globale Einstellungen (Port / Intervall / Speicherung)",
                     "add_device": "Gerät hinzufügen",
+                    "edit_device": "Gerät bearbeiten",
                     "remove_device": "Gerät entfernen"
+                }
+            },
+            "global_settings": {
+                "title": "Globale Einstellungen",
+                "data": {
+                    "port": "Server Port",
+                    "polling_interval": "Polling-Intervall (Sekunden)",
+                    "persist_states": "Zustände nach Neustart wiederherstellen"
                 }
             },
             "add_device": {
@@ -29,6 +41,23 @@
                     "key": "AES Schlüssel (Hex 32-stellig) - Nötig bei Verschlüsselung",
                     "vds_device": "Gerätenummer (Standard = 1)",
                     "vds_area": "Bereichsnummer (Standard = 1)"
+                }
+            },
+            "edit_device": {
+                "title": "Gerät zur Bearbeitung auswählen",
+                "data": {
+                    "device_to_edit": "Gerät auswählen"
+                }
+            },
+            "edit_device_details": {
+                "title": "Details für Gerät {ident} bearbeiten",
+                "data": {
+                    "identnr": "Identnummer (Nicht änderbar)",
+                    "encrypted": "Verschlüsselung aktivieren (AES-128)",
+                    "keynr": "Schlüsselnummer (VdS-KeyNr.)",
+                    "key": "AES Schlüssel (HEX-Format)",
+                    "vds_device": "Gerätenummer",
+                    "vds_area": "Bereichsnummer"
                 }
             },
             "remove_device": {
