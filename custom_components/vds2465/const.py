@@ -7,6 +7,7 @@ CONF_KEY = "key"
 CONF_ENCRYPT = "encrypted"
 CONF_VDS_DEVICE = "vds_device"
 CONF_VDS_AREA = "vds_area"
+CONF_VDS_OUTPUTS = "vds_outputs"
 CONF_POLLING_INTERVAL = "polling_interval"
 CONF_PERSIST_STATES = "persist_states"
 

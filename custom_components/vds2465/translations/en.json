@@ -40,7 +40,8 @@
                     "keynr": "Key number (VdS-KeyNr.) - Required if encrypted",
                     "key": "AES Key (Hex 32-digit) - Required if encrypted",
                     "vds_device": "Device number (Standard = 1)",
-                    "vds_area": "Area number (Standard = 1)"
+                    "vds_area": "Area number (Standard = 1)",
+                    "vds_outputs": "Number of outputs (0 to disable)"
                 }
             },
             "edit_device": {
@@ -57,7 +58,8 @@
                     "keynr": "Key number (VdS-KeyNr.)",
                     "key": "AES Key (HEX format)",
                     "vds_device": "Device number",
-                    "vds_area": "Area number"
+                    "vds_area": "Area number",
+                    "vds_outputs": "Number of outputs"
                 }
             },
             "remove_device": {

@@ -13,6 +13,7 @@ from .const import (
     CONF_ENCRYPT, 
     CONF_VDS_DEVICE, 
     CONF_VDS_AREA, 
+    CONF_VDS_OUTPUTS,
     CONF_POLLING_INTERVAL, 
     DEFAULT_POLLING_INTERVAL,
     CONF_PERSIST_STATES
@@ -57,7 +58,6 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_global_settings(self, user_input=None):
         """Step to configure global settings."""
         if user_input is not None:
-            # Merge with existing options to preserve devices and discovered sensors
             new_options = self.config_entry_local.options.copy()
             new_options.update(user_input)
             return self.async_create_entry(title="", data=new_options)
@@ -86,18 +86,16 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
             encrypted = user_input.get(CONF_ENCRYPT, True)
             key = user_input.get(CONF_KEY, "")
             
-            # Validation: If encrypted, KeyNr and Key are required
             if encrypted:
                 if not user_input.get(CONF_KEYNR) or not key:
                     errors["base"] = "key_required"
+                elif len(key) != 32:
+                    errors["base"] = "key_length_invalid"
                 else:
-                    if len(key) != 32:
-                        errors["base"] = "key_length_invalid"
-                    else:
-                        try:
-                            int(key, 16)
-                        except ValueError:
-                            errors["base"] = "key_invalid_hex"
+                    try:
+                        int(key, 16)
+                    except ValueError:
+                        errors["base"] = "key_invalid_hex"
             
             if not errors:
                 # Get current options and update devices
@@ -113,6 +111,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                     "stehend": True,
                     "vds_device": user_input.get(CONF_VDS_DEVICE, 1),
                     "vds_area": user_input.get(CONF_VDS_AREA, 1),
+                    "vds_outputs": user_input.get(CONF_VDS_OUTPUTS, 0),
                 }
                 
                 new_options[CONF_DEVICES] = devices
@@ -127,6 +126,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Optional(CONF_KEY, default=""): str,
                 vol.Optional(CONF_VDS_DEVICE, default=1): int,
                 vol.Optional(CONF_VDS_AREA, default=1): int,
+                vol.Optional(CONF_VDS_OUTPUTS, default=0): int,
             }),
             errors=errors
         )
@@ -180,6 +180,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                     "key": key,
                     "vds_device": user_input.get(CONF_VDS_DEVICE, 1),
                     "vds_area": user_input.get(CONF_VDS_AREA, 1),
+                    "vds_outputs": user_input.get(CONF_VDS_OUTPUTS, 0),
                 })
                 
                 new_options = self.config_entry_local.options.copy()
@@ -195,6 +196,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Optional(CONF_KEY, default=device_data.get("key", "")): str,
                 vol.Optional(CONF_VDS_DEVICE, default=device_data.get("vds_device", 1)): int,
                 vol.Optional(CONF_VDS_AREA, default=device_data.get("vds_area", 1)): int,
+                vol.Optional(CONF_VDS_OUTPUTS, default=device_data.get("vds_outputs", 0)): int,
             }),
             description_placeholders={"ident": device_data.get("identnr")},
             errors=errors
@@ -205,9 +207,22 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
             key_to_remove = user_input["device_to_remove"]
             new_options = self.config_entry_local.options.copy()
             devices = new_options.get(CONF_DEVICES, {}).copy()
+            
+            # 1. Get the identnr of the device to be removed
+            removed_device = devices.get(key_to_remove)
+            removed_ident = str(removed_device.get("identnr")) if removed_device else None
+
+            # 2. Remove device from devices list
             if key_to_remove in devices:
                 del devices[key_to_remove]
             new_options[CONF_DEVICES] = devices
+
+            # 3. Also cleanup discovered_sensors for this identnr
+            if removed_ident:
+                discovered = new_options.get("discovered_sensors", [])
+                new_discovered = [s for s in discovered if str(s.get("ident")) != removed_ident]
+                new_options["discovered_sensors"] = new_discovered
+
             return self.async_create_entry(title="", data=new_options)
 
         devices = self.config_entry_local.options.get(CONF_DEVICES, {})

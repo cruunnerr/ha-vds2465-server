@@ -76,6 +76,7 @@ Once the integration is added, you must register your alarm panels so HA can dec
 * **AES Key**: The 32-character hexadecimal key used for encryption.
 * **Device Number**: Important for switching outputs. (Default: 1).
 * **Area Number**: Important for switching outputs. (Default: 1).
+* **Number of Outputs**: Set how many output switches should be created for this device (0 to disable).
 
 ### 3. Configure your Alarm Panel
 
@@ -243,6 +244,7 @@ Sobald die Integration hinzugefügt wurde, musst du deine Alarmanlagen registrie
 * **Schlüsselnummer**: Der Index des verwendeten Schlüssels.
 * **AES Key**: Der 32-stellige Hexadezimal-Schlüssel für die Verschlüsselung.
 * **Gerätenummer / Bereichsnummer**: Wichtig für das Schalten von Ausgängen.
+* **Anzahl der Ausgänge**: Definiere wieviele Ausgänge du am Übertragungsgerät schalten willst (0 für keine).
 
 ### 3. Alarmanlage konfigurieren
 
