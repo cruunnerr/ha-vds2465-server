@@ -4,7 +4,7 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.const import CONF_PORT
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from .const import DOMAIN, CONF_DEVICES, EVENT_VDS_ALARM, CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL
 from .vds_lib import VdSAsyncServer
 
@@ -21,18 +21,43 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     interval = entry.options.get(CONF_POLLING_INTERVAL, entry.data.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL))
     
     devices_raw = entry.options.get(CONF_DEVICES, {})
+    current_ident_nrs = {str(d["identnr"]) for d in devices_raw.values()}
 
-    # Cleanup orphaned devices BEFORE starting server
+    # 1. Cleanup orphaned devices from Device Registry
     device_registry = dr.async_get(hass)
     device_entries = dr.async_entries_for_config_entry(device_registry, entry.entry_id)
-    current_ident_nrs = {str(d["identnr"]) for d in devices_raw.values()}
     
     for dev_entry in device_entries:
         for domain, ident in dev_entry.identifiers:
             if domain == DOMAIN and ident not in current_ident_nrs:
-                _LOGGER.debug(f"Removing orphaned device: {ident}")
+                _LOGGER.info(f"Removing orphaned VdS device from registry: {ident}")
                 device_registry.async_remove_device(dev_entry.id)
                 break
+
+    # 2. Cleanup orphaned entities from Entity Registry
+    entity_registry = er.async_get(hass)
+    entity_entries = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+    for ent_entry in entity_entries:
+        # Check if the entity is associated with an identnr that no longer exists
+        # We look for the identnr in the unique_id (common pattern in this component) 
+        # OR we check if its device is gone.
+        
+        # Check if device_id is still in the device registry (if it had one)
+        if ent_entry.device_id:
+            if device_registry.async_get(ent_entry.device_id) is None:
+                _LOGGER.info(f"Removing orphaned VdS entity (no device): {ent_entry.entity_id}")
+                entity_registry.async_remove_entry(ent_entry.entity_id)
+                continue
+
+        # Check unique_id for identnr (failsafe)
+        # Unique IDs are usually vds_[ident]_... or similar
+        for ident in current_ident_nrs:
+            if ident in ent_entry.unique_id:
+                break
+        else:
+            # No current identnr found in unique_id, and it belongs to our entry
+            _LOGGER.info(f"Removing orphaned VdS entity (no config): {ent_entry.entity_id}")
+            entity_registry.async_remove_entry(ent_entry.entity_id)
     
     devices_config_list = list(devices_raw.values())
 

@@ -40,7 +40,8 @@
                     "keynr": "Schlüsselnummer (VdS-KeyNr.) - Nötig bei Verschlüsselung",
                     "key": "AES Schlüssel (Hex 32-stellig) - Nötig bei Verschlüsselung",
                     "vds_device": "Gerätenummer (Standard = 1)",
-                    "vds_area": "Bereichsnummer (Standard = 1)"
+                    "vds_area": "Bereichsnummer (Standard = 1)",
+                    "vds_outputs": "Anzahl der Ausgänge (0 zum Deaktivieren)"
                 }
             },
             "edit_device": {
@@ -57,7 +58,8 @@
                     "keynr": "Schlüsselnummer (VdS-KeyNr.)",
                     "key": "AES Schlüssel (HEX-Format)",
                     "vds_device": "Gerätenummer",
-                    "vds_area": "Bereichsnummer"
+                    "vds_area": "Bereichsnummer",
+                    "vds_outputs": "Anzahl der Ausgänge"
                 }
             },
             "remove_device": {

@@ -3,7 +3,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import EntityCategory
-from .const import DOMAIN, CONF_DEVICES, CONF_VDS_DEVICE, CONF_VDS_AREA
+from .const import DOMAIN, CONF_DEVICES, CONF_VDS_DEVICE, CONF_VDS_AREA, CONF_VDS_OUTPUTS
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -19,8 +19,10 @@ async def async_setup_entry(
         identnr = dev_conf.get("identnr", "Unknown")
         vds_device = dev_conf.get(CONF_VDS_DEVICE, 1)
         vds_area = dev_conf.get(CONF_VDS_AREA, 1)
-        # Create 40 outputs per device
-        for i in range(1, 41):
+        # Get configured number of outputs (default 0)
+        num_outputs = dev_conf.get(CONF_VDS_OUTPUTS, 0)
+        
+        for i in range(1, num_outputs + 1):
             entities.append(VdsOutputSwitch(hub, identnr, i, vds_device, vds_area))
 
     async_add_entities(entities)
