@@ -19,6 +19,8 @@ async def async_setup_entry(
     # We iterate values to be safe.
     for dev_conf in devices.values():
         entities.append(VdsConnectivitySensor(hub, dev_conf))
+        if dev_conf.get("test_interval", 0) > 0:
+            entities.append(VdsMonitoringSensor(hub, dev_conf))
 
     async_add_entities(entities)
 
@@ -26,16 +28,17 @@ async def async_setup_entry(
 class VdsConnectivitySensor(BinarySensorEntity):
     """Binary Sensor representing connection status of a VdS device."""
 
+    _attr_has_entity_name = True
     _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
     _attr_should_poll = False
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, hub, dev_conf):
         self._hub = hub
-        self._ident_nr = dev_conf.get("identnr", "Unknown")
+        self._ident_nr = str(dev_conf.get("identnr", "Unknown"))
         # Unique ID based on IdentNr to support multiple unencrypted devices
         self._attr_unique_id = f"vds_status_{self._ident_nr}"
-        self._attr_name = f"VdS {self._ident_nr} Status"
+        self._attr_translation_key = "connectivity"
         self._attr_is_on = False # Start offline
         self._attr_device_info = {
             "identifiers": {(DOMAIN, str(self._ident_nr))},
@@ -52,7 +55,7 @@ class VdsConnectivitySensor(BinarySensorEntity):
     def _handle_event(self, event_type, data):
         """Handle events from VdS Hub."""
         # Match by IdentNr
-        if data.get("identnr") != self._ident_nr:
+        if str(data.get("identnr")) != self._ident_nr:
             return
 
         if event_type == "connected":
@@ -61,3 +64,48 @@ class VdsConnectivitySensor(BinarySensorEntity):
         elif event_type == "disconnected":
             self._attr_is_on = False
             self.async_write_ha_state()
+
+
+class VdsMonitoringSensor(BinarySensorEntity):
+    """Binary Sensor representing the monitoring status (overdue test messages)."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_should_poll = False
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, hub, dev_conf):
+        self._hub = hub
+        self._ident_nr = str(dev_conf.get("identnr", "Unknown"))
+        self._attr_unique_id = f"vds_monitoring_{self._ident_nr}"
+        self._attr_translation_key = "monitoring"
+        self._attr_is_on = False # False = No Problem
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, str(self._ident_nr))},
+            "name": f"VdS Device {self._ident_nr}",
+            "manufacturer": "VdS 2465",
+            "model": "Generic ID",
+        }
+
+    async def async_added_to_hass(self):
+        """Register callbacks."""
+        self.async_on_remove(self._hub.add_listener(self._handle_event))
+        
+        # Initial state from hub
+        if self._hub.overdue_state.get(self._ident_nr):
+            self._attr_is_on = True
+
+    @callback
+    def _handle_event(self, event_type, data):
+        """Handle events from VdS Hub."""
+        if str(data.get("identnr")) != self._ident_nr:
+            return
+
+        if event_type == "alarm":
+            code = data.get("code")
+            if code == 54: # Overdue
+                self._attr_is_on = True
+                self.async_write_ha_state()
+            elif code == 182: # Recovered
+                self._attr_is_on = False
+                self.async_write_ha_state()

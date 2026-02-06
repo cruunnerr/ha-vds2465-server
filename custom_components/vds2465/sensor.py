@@ -161,7 +161,7 @@ class VdsAddressSensor(RestoreEntity, SensorEntity):
         
         # Unique ID combining IdentNr and Address
         self._attr_unique_id = f"vds_{self._ident_nr}_addr_{self._adresse}"
-        self._attr_name = f"VdS {self._ident_nr} Address {self._adresse}"
+        self._attr_name = f"Address {self._adresse}"
         self._attr_native_value = "Unknown"
         self._attr_extra_state_attributes = {}
         
@@ -217,7 +217,7 @@ class VdsOutputSensor(RestoreEntity, SensorEntity):
         
         # Unique ID for Output Sensor
         self._attr_unique_id = f"vds_{self._ident_nr}_output_{self._adresse}"
-        self._attr_name = f"VdS {self._ident_nr} Output {self._adresse}"
+        self._attr_name = f"Output {self._adresse}"
         self._attr_native_value = "Unknown"
         self._attr_extra_state_attributes = {}
         
@@ -267,7 +267,7 @@ class VdsLastMessageSensor(RestoreEntity, SensorEntity):
         self._ident_nr = str(dev_conf.get("identnr", "Unknown"))
         self._persist = persist
         self._attr_unique_id = f"vds_last_msg_{self._ident_nr}"
-        self._attr_name = f"VdS {self._ident_nr} Last Message"
+        self._attr_name = f"Last Message"
         self._attr_native_value = "No messages yet"
         
         # Initial attributes with placeholders
@@ -334,7 +334,7 @@ class VdsLastTestMessageSensor(RestoreEntity, SensorEntity):
         self._ident_nr = dev_conf.get("identnr", "Unknown")
         self._persist = persist
         self._attr_unique_id = f"vds_last_test_msg_{self._ident_nr}"
-        self._attr_name = f"VdS {self._ident_nr} Last Test Message"
+        self._attr_name = f"Last Test Message"
         self._attr_native_value = None
         self._attr_device_info = {
             "identifiers": {(DOMAIN, str(self._ident_nr))},
@@ -376,7 +376,7 @@ class VdsManufacturerSensor(RestoreEntity, SensorEntity):
         self._ident_nr = dev_conf.get("identnr", "Unknown")
         self._persist = persist
         self._attr_unique_id = f"vds_manufacturer_{self._ident_nr}"
-        self._attr_name = f"VdS {self._ident_nr} Manufacturer ID"
+        self._attr_name = f"Manufacturer ID"
         self._attr_native_value = "Unknown"
         self._attr_extra_state_attributes = {}
         self._attr_device_info = {

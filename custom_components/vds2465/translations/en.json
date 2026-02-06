@@ -41,7 +41,8 @@
                     "key": "AES Key (Hex 32-digit) - Required if encrypted",
                     "vds_device": "Device number (Standard = 1)",
                     "vds_area": "Area number (Standard = 1)",
-                    "vds_outputs": "Number of outputs (0 to disable)"
+                    "vds_outputs": "Number of outputs (0 to disable)",
+                    "test_interval": "Test Message Interval (Minutes, 0 = Off)"
                 }
             },
             "edit_device": {
@@ -59,7 +60,8 @@
                     "key": "AES Key (HEX format)",
                     "vds_device": "Device number",
                     "vds_area": "Area number",
-                    "vds_outputs": "Number of outputs"
+                    "vds_outputs": "Number of outputs",
+                    "test_interval": "Test Message Interval (Minutes)"
                 }
             },
             "remove_device": {
@@ -72,6 +74,16 @@
         "error": {
             "no_devices": "No devices configured to remove.",
             "key_required": "Encryption enabled: Key Number and AES Key are required."
+        }
+    },
+    "entity": {
+        "binary_sensor": {
+            "connectivity": {
+                "name": "Connection Status"
+            },
+            "monitoring": {
+                "name": "Test Interval Status"
+            }
         }
     }
 }

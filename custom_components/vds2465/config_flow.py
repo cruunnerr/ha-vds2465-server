@@ -14,6 +14,7 @@ from .const import (
     CONF_VDS_DEVICE, 
     CONF_VDS_AREA, 
     CONF_VDS_OUTPUTS,
+    CONF_TEST_INTERVAL,
     CONF_POLLING_INTERVAL, 
     DEFAULT_POLLING_INTERVAL,
     CONF_PERSIST_STATES
@@ -112,6 +113,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                     "vds_device": user_input.get(CONF_VDS_DEVICE, 1),
                     "vds_area": user_input.get(CONF_VDS_AREA, 1),
                     "vds_outputs": user_input.get(CONF_VDS_OUTPUTS, 0),
+                    "test_interval": user_input.get(CONF_TEST_INTERVAL, 0),
                 }
                 
                 new_options[CONF_DEVICES] = devices
@@ -127,6 +129,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Optional(CONF_VDS_DEVICE, default=1): int,
                 vol.Optional(CONF_VDS_AREA, default=1): int,
                 vol.Optional(CONF_VDS_OUTPUTS, default=0): int,
+                vol.Optional(CONF_TEST_INTERVAL, default=0): int,
             }),
             errors=errors
         )
@@ -181,6 +184,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                     "vds_device": user_input.get(CONF_VDS_DEVICE, 1),
                     "vds_area": user_input.get(CONF_VDS_AREA, 1),
                     "vds_outputs": user_input.get(CONF_VDS_OUTPUTS, 0),
+                    "test_interval": user_input.get(CONF_TEST_INTERVAL, 0),
                 })
                 
                 new_options = self.config_entry_local.options.copy()
@@ -197,6 +201,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Optional(CONF_VDS_DEVICE, default=device_data.get("vds_device", 1)): int,
                 vol.Optional(CONF_VDS_AREA, default=device_data.get("vds_area", 1)): int,
                 vol.Optional(CONF_VDS_OUTPUTS, default=device_data.get("vds_outputs", 0)): int,
+                vol.Optional(CONF_TEST_INTERVAL, default=device_data.get("test_interval", 0)): int,
             }),
             description_placeholders={"ident": device_data.get("identnr")},
             errors=errors
