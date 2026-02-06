@@ -1,11 +1,12 @@
 import asyncio
 import logging
+import datetime
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.const import CONF_PORT
 from homeassistant.helpers import device_registry as dr, entity_registry as er
-from .const import DOMAIN, CONF_DEVICES, EVENT_VDS_ALARM, CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL
+from .const import DOMAIN, CONF_DEVICES, EVENT_VDS_ALARM, EVENT_VDS_MONITORING, CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL
 from .vds_lib import VdSAsyncServer
 
 _LOGGER = logging.getLogger(__name__)
@@ -111,15 +112,116 @@ class VdsHub:
         self.devices_config = devices_config
         self.server = VdSAsyncServer("0.0.0.0", port, devices_config, self.handle_vds_event, interval)
         self._listeners = []
+        
+        # Monitoring
+        self.monitor_task = None
+        self.last_test_msg = {}
+        self.overdue_state = {}
+        
+        # Initialize last_test_msg to now for all configured devices with interval
+        now = datetime.datetime.now()
+        for dev in devices_config:
+            ident = str(dev.get("identnr"))
+            if dev.get("test_interval", 0) > 0:
+                self.last_test_msg[ident] = now
+                self.overdue_state[ident] = False
 
     async def start(self):
         await self.server.start()
+        self.monitor_task = asyncio.create_task(self.monitor_loop())
 
     async def stop(self):
+        if self.monitor_task:
+            self.monitor_task.cancel()
         await self.server.stop()
+
+    async def monitor_loop(self):
+        """Periodically check for overdue test messages."""
+        _LOGGER.debug("Starting VdS monitoring loop")
+        while True:
+            try:
+                await asyncio.sleep(60) # Check every minute
+                now = datetime.datetime.now()
+                
+                for dev in self.devices_config:
+                    ident = str(dev.get("identnr"))
+                    interval_min = dev.get("test_interval", 0)
+                    
+                    if interval_min <= 0:
+                        continue
+                        
+                    last_ts = self.last_test_msg.get(ident)
+                    if not last_ts:
+                        # Should have been initialized in __init__, but failsafe
+                        self.last_test_msg[ident] = now
+                        continue
+                        
+                    diff = (now - last_ts).total_seconds() / 60
+                    
+                    # Check Overdue
+                    if diff > interval_min:
+                        if not self.overdue_state.get(ident, False):
+                            _LOGGER.warning(f"VdS Device {ident} overdue! Last test message: {last_ts}, Interval: {interval_min}m")
+                            self.overdue_state[ident] = True
+                            
+                            # 1. Fire specific monitoring event
+                            self.hass.bus.async_fire(EVENT_VDS_MONITORING, {
+                                "type": "overdue",
+                                "identnr": ident,
+                                "last_contact": last_ts.isoformat(),
+                                "interval": interval_min,
+                                "minutes_overdue": int(diff - interval_min)
+                            })
+
+                            # 2. Fire an ALARM event for the sensors to catch (Code 54 = Störung Testmeldung)
+                            self.handle_vds_event("alarm", {
+                                "identnr": ident,
+                                "code": 54,
+                                "text": "Störung Testmeldung - Nicht erhalten",
+                                "adresse": 0, # Use address 0 for system-level issues
+                                "quelle": "Eingang",
+                                "zustand": "Ein",
+                                "type": "Meldung"
+                            })
+                    
+                    # Check Recovery (handled mostly in handle_vds_event, but double check here if needed?)
+                    # No, recovery logic is best placed on message receipt.
+            
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                _LOGGER.error(f"Error in VdS monitoring loop: {e}")
 
     def handle_vds_event(self, event_type, data):
         """Callback from VdS Lib."""
+        # Update monitoring stats
+        ident = str(data.get("identnr"))
+        
+        # Check for Test Message to update timestamp
+        if event_type == "status" and data.get("msg") == "Testmeldung":
+            self.last_test_msg[ident] = datetime.datetime.now()
+            
+            # Check for Recovery
+            if self.overdue_state.get(ident, False):
+                _LOGGER.info(f"VdS Device {ident} recovered (Test message received).")
+                self.overdue_state[ident] = False
+                self.hass.bus.async_fire(EVENT_VDS_MONITORING, {
+                    "type": "recovered",
+                    "identnr": ident,
+                    "last_contact": self.last_test_msg[ident].isoformat()
+                })
+                
+                # Fire RECOVERY alarm event (Code 182 = Störung Testmeldung - Wieder in Ordnung)
+                self.handle_vds_event("alarm", {
+                    "identnr": ident,
+                    "code": 182,
+                    "text": "Störung Testmeldung - Wieder in Ordnung",
+                    "adresse": 0,
+                    "quelle": "Eingang",
+                    "zustand": "Aus",
+                    "type": "Meldung"
+                })
+
         # 1. Fire generic event to HA Bus
         event_payload = {"type": event_type, **data}
         _LOGGER.debug(f"VdS Event: {event_type} - {data}")

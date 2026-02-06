@@ -22,6 +22,7 @@ The integration supports encrypted communication (AES), persistent and demand-co
 * **State Persistence**: Optional recovery of sensor states and attributes after a Home Assistant restart.
 * **Entities per Device**:
     * `binary_sensor`: Connection Status (Online/Offline).
+    * `binary_sensor`: Test Interval Status (Problem if overdue).
     * `sensor`: Last Message (Readable text).
     * `sensor`: Last Routine Call (Timestamp).
     * `sensor`: Manufacturer ID.
@@ -77,6 +78,7 @@ Once the integration is added, you must register your alarm panels so HA can dec
 * **Device Number**: Important for switching outputs. (Default: 1).
 * **Area Number**: Important for switching outputs. (Default: 1).
 * **Number of Outputs**: Set how many output switches should be created for this device (0 to disable).
+* **Test Message Interval**: The expected interval for routine test messages in minutes (0 to disable monitoring). If exceeded, a problem status is triggered.
 
 ### 3. Configure your Alarm Panel
 
@@ -99,6 +101,10 @@ For each configured device, the following entities are created:
     * **On**: Device is connected and authenticated.
     * **Off**: Device is disconnected.
     (For persistent connections, this state should ideally always be "Connected" to allow for quick failure detection.)
+
+* **`binary_sensor.vds_[ident]_monitoring`**:
+    * **On (Problem)**: No test message received within the configured interval.
+    * **Off**: Everything OK.
 
 * **`sensor.vds_[ident]_last_message`**:
     * Shows the text of the last received event (e.g., "Einbruch - Ausgelöst").
@@ -193,6 +199,7 @@ Die Integration unterstützt verschlüsselte Kommunikation (AES), stehende und b
 * **Zustandsspeicherung**: Optionale Wiederherstellung von Sensorwerten und Attributen nach einem Home Assistant Neustart.
 * **Entitäten pro Gerät**:
     * `binary_sensor`: Verbindungsstatus (Online/Offline).
+    * `binary_sensor`: Testintervall-Status (Problem bei Zeitüberschreitung des Testintervalls).
     * `sensor`: Letzte Meldung (Lesbarer Text).
     * `sensor`: Letzter Routineruf (Zeitstempel).
     * `sensor`: Hersteller-ID.
@@ -245,6 +252,7 @@ Sobald die Integration hinzugefügt wurde, musst du deine Alarmanlagen registrie
 * **AES Key**: Der 32-stellige Hexadezimal-Schlüssel für die Verschlüsselung.
 * **Gerätenummer / Bereichsnummer**: Wichtig für das Schalten von Ausgängen.
 * **Anzahl der Ausgänge**: Definiere wieviele Ausgänge du am Übertragungsgerät schalten willst (0 für keine).
+* **Testmeldung Intervall**: Das erwartete Intervall für Routinerufe in Minuten (0 zum Deaktivieren). Bei Überschreitung wird ein Problem-Status gemeldet.
 
 ### 3. Alarmanlage konfigurieren
 
@@ -261,6 +269,7 @@ Konfiguriere das IP-Übertragungsgerät (ÜG) deiner Alarmanlage für den Versan
 ### Entitäten
 
 * **`binary_sensor.vds_[ident]_status`**: Online/Offline-Status der Verbindung.
+* **`binary_sensor.vds_[ident]_monitoring`**: Testintervall-Überwachung (Ein = Problem bei Zeitüberschreitung).
 * **`sensor.vds_[ident]_last_message`**: Zeigt den Text des zuletzt empfangenen Ereignisses (z. B. "Einbruch - Ausgelöst").
 Attribute enthalten Rohdaten , welche mit der Nachricht geschickt wurden - zum Beispiel:
     - Identnr

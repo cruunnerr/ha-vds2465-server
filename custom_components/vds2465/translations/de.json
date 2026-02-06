@@ -41,7 +41,8 @@
                     "key": "AES Schlüssel (Hex 32-stellig) - Nötig bei Verschlüsselung",
                     "vds_device": "Gerätenummer (Standard = 1)",
                     "vds_area": "Bereichsnummer (Standard = 1)",
-                    "vds_outputs": "Anzahl der Ausgänge (0 zum Deaktivieren)"
+                    "vds_outputs": "Anzahl der Ausgänge (0 zum Deaktivieren)",
+                    "test_interval": "Testmeldung Intervall (Minuten, 0 = Aus)"
                 }
             },
             "edit_device": {
@@ -59,7 +60,8 @@
                     "key": "AES Schlüssel (HEX-Format)",
                     "vds_device": "Gerätenummer",
                     "vds_area": "Bereichsnummer",
-                    "vds_outputs": "Anzahl der Ausgänge"
+                    "vds_outputs": "Anzahl der Ausgänge",
+                    "test_interval": "Testmeldung Intervall (Minuten)"
                 }
             },
             "remove_device": {
@@ -72,6 +74,16 @@
         "error": {
             "no_devices": "Keine Geräte zum Entfernen vorhanden.",
             "key_required": "Verschlüsselung aktiv: Schlüsselnummer und Key müssen angegeben werden."
+        }
+    },
+    "entity": {
+        "binary_sensor": {
+            "connectivity": {
+                "name": "Verbindungsstatus"
+            },
+            "monitoring": {
+                "name": "Testintervall-Status"
+            }
         }
     }
 }

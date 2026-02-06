@@ -8,6 +8,7 @@ CONF_ENCRYPT = "encrypted"
 CONF_VDS_DEVICE = "vds_device"
 CONF_VDS_AREA = "vds_area"
 CONF_VDS_OUTPUTS = "vds_outputs"
+CONF_TEST_INTERVAL = "test_interval"
 CONF_POLLING_INTERVAL = "polling_interval"
 CONF_PERSIST_STATES = "persist_states"
 
@@ -15,3 +16,4 @@ DEFAULT_PORT = 4100
 DEFAULT_POLLING_INTERVAL = 5
 
 EVENT_VDS_ALARM = "vds2465_alarm"
+EVENT_VDS_MONITORING = "vds2465_monitoring_alert"
