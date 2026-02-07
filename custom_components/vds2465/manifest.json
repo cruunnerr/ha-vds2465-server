@@ -4,6 +4,7 @@
   "codeowners": ["@cruunnerr"],
   "config_flow": true,
   "documentation": "https://github.com/cruunnerr/ha-vds2465-server",
+  "integration_type": "hub",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/cruunnerr/ha-vds2465-server/issues",
   "requirements": [
