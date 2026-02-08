@@ -1,0 +1,131 @@
+blueprint:
+  name: VdS 2465 Alarm (Adressen)
+  description: >
+    Reagiert gezielt auf Meldungen einer bestimmten Adresse (Kanal).
+    Ideal für Wassermelder, Temperatursensoren oder technische Meldungen (oft Code 0 oder 128).
+  domain: automation
+  input:
+    vds_ident:
+      name: VdS Identnummer
+      description: "Die Identnummer der Alarmanlage."
+      selector:
+        text: 
+
+    target_address:
+      name: Adresse (Kanalnummer)
+      description: "Die Adresse des Melders (z.B. 43)."
+      selector:
+        number:
+          min: 0
+          max: 9999
+          mode: box
+
+    notify_mode:
+      name: Benachrichtigungs-Art
+      default: "info"
+      selector:
+        select:
+          options:
+            - label: "Info (Still)"
+              value: "info"
+            - label: "Kritisch (Laut)"
+              value: "critical"
+
+    notify_title:
+      name: Titel der Nachricht
+      description: "z.B. 'Terrassentür' oder 'Wasser-Alarm'"
+      default: "VdS Meldung"
+      selector:
+        text: 
+
+    notify_device:
+      name: Benachrichtigungs-Ziel
+      selector:
+        device:
+          integration: mobile_app
+
+    # --- INHALT STEUERUNG ---
+    show_vds_text:
+      name: "VdS Standard-Text anzeigen?"
+      description: "z.B. 'Meldung - Ein' oder 'Einbruch - Ausgelöst'"
+      default: true
+      selector:
+        boolean: 
+
+    show_custom_text:
+      name: "Zusatztext anzeigen?"
+      description: "Zeigt 'Area name' oder 'msg_text' (z.B. 'Terrassentuer geschlossen')."
+      default: true
+      selector:
+        boolean: 
+
+    show_area:
+      name: "Bereichsnummer anzeigen?"
+      default: false
+      selector:
+        boolean: 
+
+    show_time:
+      name: "Zeitstempel anzeigen?"
+      description: "Die Entstehungszeit der Meldung."
+      default: false
+      selector:
+        boolean: 
+
+trigger:
+  - platform: event
+    event_type: vds2465_alarm
+
+variables:
+  vds_ident_input: !input vds_ident
+  target_address_input: !input target_address
+
+condition:
+  - condition: template
+    value_template: "{{ trigger.event.data.identnr | string == vds_ident_input | string }}"
+  - condition: template
+    value_template: "{{ trigger.event.data.adresse | int == target_address_input | int }}"
+
+action:
+  - variables:
+      # Inputs laden
+      in_show_vds: !input show_vds_text
+      in_show_custom: !input show_custom_text
+      in_show_area: !input show_area
+      in_show_time: !input show_time
+      mode: !input notify_mode
+      custom_title: !input notify_title
+
+      # Daten aus Event laden
+      # msg_text oder area_name als Zusatztext verwenden
+      raw_custom: "{{ trigger.event.data.msg_text | default(trigger.event.data.area_name) | default('') }}"
+      raw_vds: "{{ trigger.event.data.text }}"
+      raw_time: "{{ trigger.event.data.entstehungszeit }}"
+      raw_bereich: "{{ trigger.event.data.bereich }}"
+
+      # Nachricht zusammenbauen
+      part_vds: "{{ raw_vds if in_show_vds else '' }}"
+      # Bindestrich nur hinzufügen, wenn VdS Text an ist UND Zusatztext existiert
+      sep: "{{ ' - ' if (in_show_vds and in_show_custom and raw_custom) else '' }}"
+      part_custom: "{{ raw_custom if in_show_custom else '' }}"
+      part_area: "{{ (' (Bereich ' ~ raw_bereich ~ ')') if in_show_area else '' }}"
+      part_time: "{{ ('\n🕓 ' ~ raw_time) if (in_show_time and raw_time) else '' }}"
+      
+      final_message: "{{ part_vds }}{{ sep }}{{ part_custom }}{{ part_area }}{{ part_time }}"
+      # Fallback falls alles aus ist
+      safe_message: "{{ final_message if final_message | trim != '' else 'Alarm ausgelöst (Keine Details gewählt)' }}"
+
+  - domain: mobile_app
+    type: notify
+    device_id: !input notify_device
+    message: "{{ safe_message }}"
+    title: "{{ custom_title }}"
+    data:
+      push:
+        sound:
+          name: default
+          critical: "{{ 1 if mode == 'critical' else 0 }}"
+          volume: "{{ 1.0 if mode == 'critical' else 0.5 }}"
+
+mode: queued
+max: 10

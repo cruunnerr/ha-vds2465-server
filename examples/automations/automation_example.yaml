@@ -1,0 +1,113 @@
+alias: "VdS 2465 Alarm"
+description: "Zentrale Automation für alle VdS Meldungen mit Kategorien und Spezialregeln."
+mode: queued
+max: 10
+
+trigger:
+  - platform: event
+    event_type: vds2465_alarm
+
+condition:
+  # Optional: Nur auf eine bestimmte Anlage reagieren
+  # - condition: template
+  #   value_template: "{{ trigger.event.data.identnr == '123456' }}"
+
+action:
+  - variables:
+      # --- KONFIGURATION ---
+      
+      # 1. Benachrichtigungs-Dienste (Liste)
+      notify_services: 
+        - "notify.mobile_app_iphone_peter"
+        - "notify.mobile_app_iphone_petra"
+        # - "notify.pushover"
+      
+      # 2. Verhalten pro Kategorie (off / info / critical)
+      mode_fire: "critical"
+      mode_burglary: "critical"
+      mode_panic: "critical"
+      mode_sabotage: "info"
+      mode_trouble: "info"
+      mode_arm: "info"
+      mode_general: "info" # Für alles andere
+
+      # 3. Daten aus dem Event
+      code: "{{ trigger.event.data.code | int }}"
+      adresse: "{{ trigger.event.data.adresse | int }}"
+      bereich: "{{ trigger.event.data.bereich }}"
+      raw_text: "{{ trigger.event.data.text }}"
+      msg_text: "{{ trigger.event.data.msg_text | default('') }}"
+      
+      # 4. Text Zusammenbau
+      # Hier kannst du das Format der Nachricht anpassen
+      message_text: >-
+        {{ raw_text }}
+        {% if msg_text != '' %} - {{ msg_text }}{% endif %}
+        (Bereich {{ bereich }})
+
+      # --- KATEGORIE LOGIK (Mapping) ---
+      category: >-
+        {% if code in [16, 17, 18, 19, 144, 145, 146, 147] %}fire
+        {% elif code in [33, 36, 37, 39, 40, 161, 164, 165, 167, 168] %}panic
+        {% elif code in [32, 34, 38, 47, 160, 162, 166, 175] %}burglary
+        {% elif code in [35, 86, 163, 214] %}sabotage
+        {% elif code in [97, 98, 225, 226] %}arm_disarm
+        {% elif code in [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 77, 85, 87, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 205, 215] %}trouble
+        {% else %}general{% endif %}
+
+      # --- SPEZIAL-REGELN (Überschreiben die Kategorie) ---
+      # Beispiel: Wassermelder an Adresse 10 -> Immer Kritisch "fire" (oder eigener Modus)
+      forced_category: >-
+        {% if adresse == 10 %}special_water
+        {% elif adresse == 43 %}special_terrace
+        {% else %}none{% endif %}
+
+      # --- FINALER MODUS ---
+      current_mode: >-
+        {% if forced_category != 'none' %}
+          {% if forced_category == 'special_water' %}critical
+          {% elif forced_category == 'special_terrace' %}info
+          {% endif %}
+        {% else %}
+          {% if category == 'fire' %}{{ mode_fire }}
+          {% elif category == 'panic' %}{{ mode_panic }}
+          {% elif category == 'burglary' %}{{ mode_burglary }}
+          {% elif category == 'sabotage' %}{{ mode_sabotage }}
+          {% elif category == 'arm_disarm' %}{{ mode_arm }}
+          {% elif category == 'trouble' %}{{ mode_trouble }}
+          {% else %}{{ mode_general }}{% endif %}
+        {% endif %}
+
+      # --- TITEL ---
+      title: >-
+        {% if forced_category == 'special_water' %}💧 WASSER-ALARM
+        {% elif forced_category == 'special_terrace' %}🚪 Terrassentür
+        {% elif category == 'fire' %}🔥 FEUER-ALARM
+        {% elif category == 'panic' %}🆘 ÜBERFALL
+        {% elif category == 'burglary' %}🚨 EINBRUCH
+        {% elif category == 'sabotage' %}🛠️ SABOTAGE
+        {% elif category == 'trouble' %}⚠️ STÖRUNG
+        {% elif category == 'arm_disarm' %}🔐 STATUS
+        {% else %}ℹ️ VdS Info{% endif %}
+
+  # --- AKTION ---
+  - if:
+      - condition: template
+        value_template: "{{ current_mode != 'off' }}"
+    then:
+      - repeat:
+          for_each: "{{ notify_services }}"
+          sequence:
+            - service: "{{ repeat.item }}"
+              data:
+                message: "{{ message_text }}"
+                title: "{{ title }}"
+                data:
+                  push:
+                    sound:
+                      name: default
+                      # Nur laut, wenn 'critical' gesetzt ist
+                      critical: "{{ 1 if current_mode == 'critical' else 0 }}"
+                      volume: "{{ 1.0 if current_mode == 'critical' else 0.5 }}"
+                  # Beispiel für Pushover Priority
+                  priority: "{{ 1 if current_mode == 'critical' else 0 }}"
