@@ -176,6 +176,13 @@ action:
       message: "Alarm triggered in area {{ trigger.event.data.bereich }}!"
 ```
 
+## Examples & Blueprints
+
+You can find more advanced configuration examples in the [examples/](https://github.com/cruunnerr/ha-vds2465-server/tree/main/examples) directory:
+* **Blueprints**: Easy-to-use templates for notifications (Category-based and Address-based).
+* **Advanced Automation**: A centralized automation for all your VdS events.
+* **HomeKit Integration**: How to expose your VdS panel as a real Alarm Control Panel in Apple Home.
+
 </details>
 
 ---
@@ -332,6 +339,13 @@ action:
     data:
       message: "Alarm im Bereich {{ trigger.event.data.bereich }} ausgelöst!"
 ```
+
+## Beispiele & Blueprints
+
+Im Verzeichnis [examples/](https://github.com/cruunnerr/ha-vds2465-server/tree/main/examples) findest du fortgeschrittene Konfigurationsbeispiele:
+* **Blueprints**: Einfach zu importierende Vorlagen für Benachrichtigungen (Kategorien-basiert oder Adress-basiert).
+* **Profi-Automatisierung**: Eine zentrale Automation für alle VdS-Ereignisse.
+* **HomeKit Einbindung**: Anleitung, wie du deine Einbruchmeldeanlage als Alarmanlage in Apple Home (HomeKit) anzeigst.
 
 </details>
 

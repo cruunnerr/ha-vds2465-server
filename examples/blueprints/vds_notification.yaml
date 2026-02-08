@@ -1,0 +1,192 @@
+blueprint:
+  name: VdS 2465 Alarm (Kategorien)
+  description: >
+    Sendet Benachrichtigungen basierend auf Alarm-Kategorien (Einbruch, Feuer, etc.).
+    Wähle pro Kategorie zwischen "Aus", "Info" (still) oder "Kritisch" (laut).
+  domain: automation
+  input:
+    vds_ident:
+      name: VdS Identnummer
+      description: "Die Identnummer der Alarmanlage (z.B. 123456)."
+      selector:
+        text:
+
+    notify_device:
+      name: Benachrichtigungs-Ziel
+      description: "Das Mobilgerät für die Benachrichtigung."
+      selector:
+        device:
+          integration: mobile_app
+
+    # --- KATEGORIEN MIT DROPDOWN ---
+    mode_fire:
+      name: Feuer
+      default: "critical"
+      selector:
+        select:
+          options:
+            - label: "Aus (Keine Nachricht)"
+              value: "off"
+            - label: "Info (Standard Nachricht)"
+              value: "info"
+            - label: "Kritisch (Lauter Alarm)"
+              value: "critical"
+
+    mode_burglary:
+      name: Einbruch
+      default: "critical"
+      selector:
+        select:
+          options:
+            - label: "Aus"
+              value: "off"
+            - label: "Info"
+              value: "info"
+            - label: "Kritisch"
+              value: "critical"
+
+    mode_panic:
+      name: Überfall
+      default: "critical"
+      selector:
+        select:
+          options:
+            - label: "Aus"
+              value: "off"
+            - label: "Info"
+              value: "info"
+            - label: "Kritisch"
+              value: "critical"
+
+    mode_sabotage:
+      name: Sabotage
+      default: "info"
+      selector:
+        select:
+          options:
+            - label: "Aus"
+              value: "off"
+            - label: "Info"
+              value: "info"
+            - label: "Kritisch"
+              value: "critical"
+
+    mode_trouble:
+      name: Störungen
+      default: "info"
+      selector:
+        select:
+          options:
+            - label: "Aus"
+              value: "off"
+            - label: "Info"
+              value: "info"
+            - label: "Kritisch"
+              value: "critical"
+
+    mode_arm_disarm:
+      name: Scharf / Unscharf
+      default: "off"
+      selector:
+        select:
+          options:
+            - label: "Aus"
+              value: "off"
+            - label: "Info"
+              value: "info"
+            - label: "Kritisch"
+              value: "critical"
+
+    mode_general:
+      name: Sonstige Codes
+      description: "Alles was nicht in die obigen Kategorien fällt."
+      default: "info"
+      selector:
+        select:
+          options:
+            - label: "Aus"
+              value: "off"
+            - label: "Info"
+              value: "info"
+            - label: "Kritisch"
+              value: "critical"
+
+trigger:
+  - platform: event
+    event_type: vds2465_alarm
+
+variables:
+  vds_ident_input: !input vds_ident
+
+condition:
+  - condition: template
+    value_template: "{{ trigger.event.data.identnr | string == vds_ident_input | string }}"
+
+action:
+  - variables:
+      code: "{{ trigger.event.data.code | int }}"
+      adresse: "{{ trigger.event.data.adresse | int }}"
+      full_text: >-
+        {{ trigger.event.data.text }}
+        {% if trigger.event.data.msg_text %} - {{ trigger.event.data.msg_text }}{% endif %}
+      bereich: "{{ trigger.event.data.bereich }}"
+      
+      # Mapping Code -> Kategorie
+      category: >-
+        {% if code in [16, 17, 18, 19, 144, 145, 146, 147] %}fire
+        {% elif code in [33, 36, 37, 39, 40, 161, 164, 165, 167, 168] %}panic
+        {% elif code in [32, 34, 38, 47, 160, 162, 166, 175] %}burglary
+        {% elif code in [35, 86, 163, 214] %}sabotage
+        {% elif code in [97, 98, 225, 226] %}arm_disarm
+        {% elif code in [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 77, 85, 87, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 205, 215] %}trouble
+        {% else %}general{% endif %}
+
+      # Load Inputs
+      mode_fire: !input mode_fire
+      mode_panic: !input mode_panic
+      mode_burglary: !input mode_burglary
+      mode_sabotage: !input mode_sabotage
+      mode_arm: !input mode_arm_disarm
+      mode_trouble: !input mode_trouble
+      mode_general: !input mode_general
+
+      # Bestimme gewählten Modus für aktuelle Kategorie
+      current_mode: >-
+        {% if category == 'fire' %}{{ mode_fire }}
+        {% elif category == 'panic' %}{{ mode_panic }}
+        {% elif category == 'burglary' %}{{ mode_burglary }}
+        {% elif category == 'sabotage' %}{{ mode_sabotage }}
+        {% elif category == 'arm_disarm' %}{{ mode_arm }}
+        {% elif category == 'trouble' %}{{ mode_trouble }}
+        {% else %}{{ mode_general }}{% endif %}
+
+      # Titel Mapping
+      title_map:
+        fire: "🔥 FEUER-ALARM"
+        panic: "🆘 ÜBERFALL"
+        burglary: "🚨 EINBRUCH"
+        sabotage: "🛠️ SABOTAGE"
+        trouble: "⚠️ STÖRUNG"
+        arm_disarm: "🔐 STATUS"
+        general: "ℹ️ VdS Info"
+      
+      current_title: "{{ title_map.get(category, 'VdS Info') }}"
+
+  - choose:
+      - conditions:
+          - "{{ current_mode != 'off' }}"
+        sequence:
+          - domain: mobile_app
+            type: notify
+            device_id: !input notify_device
+            message: "{{ full_text }} (Bereich {{ bereich }})"
+            title: "{{ current_title }}"
+            data:
+              push:
+                sound:
+                  name: default
+                  critical: "{{ 1 if current_mode == 'critical' else 0 }}"
+                  volume: "{{ 1.0 if current_mode == 'critical' else 0.5 }}"
+
+mode: queued
+max: 10

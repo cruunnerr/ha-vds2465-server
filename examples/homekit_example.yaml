@@ -1,0 +1,126 @@
+# ==============================================================================
+# VdS 2465 -> HomeKit Integration (Adress-basiert & Filtering)
+# ==============================================================================
+# FUNKTIONSWEISE:
+# 1. Der Trigger filtert direkt auf die Identnummer (event_data).
+#    Dadurch wird der Sensor nur berechnet, wenn ein Event DIESER Anlage kommt.
+# 2. Aktionen (Arm/Disarm) steuern die entsprechenden VdS-Outputs.
+# ==============================================================================
+# ANLEITUNG ZUM KOPIEREN:
+# Nutze die Funktion "Suchen & Ersetzen" in deinem Editor:
+# Suche nach: 123456
+# Ersetze durch: Deine echte Identnummer
+# ==============================================================================
+
+# ==============================================================================
+# Kopiere nachfolgenden Block in deine configuration.yaml
+# ==============================================================================
+template:
+  - trigger:
+    - platform: event
+      event_type: vds2465_alarm
+      event_data:
+        identnr: "123456"
+    sensor:
+      - name: "VdS System Status 123456"
+        unique_id: vds_status_123456
+        # WICHTIG: Ein valider Startwert (disarmed), falls noch kein Event kam
+        # !!! Nachfolgend die Adressen/Kanäle an deine Anlage anpassen (Zahlen in eckigen Klammern) !!!
+          # Da Homekit nur rudimentäre Status (armed_away, armed_home, disarmed, triggered) kennt, 
+          # musst du ggf. mehrere Adressen in einem Status zusammenfassen.
+          # Das Skript entscheidet automatisch, ob es sich um ein "Ein" (Code < 128) oder "Aus/Rücksetzen" (Code >= 128) handelt.
+        # Zudem müssen extern scharf, intern scharf und unscharf auf unterschiedlichen Adressen liegen, damit die Status korrekt erkannt werden können.
+        state: >-
+          {# --- PRÜFUNG: BESITZT DAS EVENT DIE NÖTIGEN DATEN? --- #}
+          {% if trigger.event.data.adresse is not defined or trigger.event.data.code is not defined %}
+            {# Falls keine Adresse/Code vorhanden (z.B. connected Event), alten Status beibehalten #}
+            {{ this.state if this.state not in ['unknown', 'unavailable'] else 'disarmed' }}
+          {% else %}
+            {# --- DATEN VOM EVENT --- #}
+            {% set current_addr = trigger.event.data.adresse | int %}
+            {% set current_code = trigger.event.data.code | int %}
+
+            {# --- KONFIGURATION: DEINE EMPFANGS-ADRESSEN --- #}
+            {% set addr_armed_away = [11] %}       {# Extern Scharf #}
+            {% set addr_armed_home = [12] %}       {# Intern Scharf #}
+            {% set addr_disarmed   = [13] %}       {# Unscharf #}
+              
+            {% set addr_alarm      = [1, 2, 3] %} {# Einbruch, Überfall, Sabotage, Brand #}
+            {% set addr_trouble    = [4, 5, 6, 7] %} {# Störung, Bereit #}
+
+            {# --- LOGIK: IST ES EIN ODER AUS? --- #}
+            {% set is_on = (current_code < 128) %}
+
+            {# --- STATUS ENTSCHEIDUNG --- #}
+            {% if current_addr in addr_alarm %}
+              {% if is_on %}triggered{% else %}disarmed{% endif %}
+            
+            {% elif current_addr in addr_armed_away %}
+              {% if is_on %}armed_away{% else %}disarmed{% endif %}
+              
+            {% elif current_addr in addr_armed_home %}
+              {% if is_on %}armed_home{% else %}disarmed{% endif %}
+
+            {% elif current_addr in addr_disarmed and is_on %}
+              disarmed
+            
+            {% else %}
+              {# Keine relevante Adresse -> Alten Status behalten #}
+              {{ this.state if this.state not in ['unknown', 'unavailable'] else 'disarmed' }}
+            {% endif %}
+          {% endif %}
+
+
+# ==============================================================================
+# Kopiere nachfolgenden Block in deine configuration.yaml
+# ==============================================================================
+
+alarm_control_panel:
+  - platform: template
+    panels:
+      vds_homekit_panel_123456:
+        name: EMA 123456
+        unique_id: vds_homekit_device_123456
+        code_arm_required: false # Optional: HomeKit fragt standardmäßig nicht nach einem Code, daher auf false setzen, wenn nicht benötigt. Sonst z.B. "1234" nutzen
+        
+        # --- AKTIONEN: STEUERUNG DER ANLAGE ---
+        # Ersetze die service-Aufrufe mit den tatsächlichen Entitäten, die deine VdS-Anlage steuern.
+
+        # Hinweis: VdS Outputs sind meist Impuls-gesteuert. Stelle sicher, dass deine Entitäten entsprechend konfiguriert sind 
+        # (z.B. über ein Template-Switch, das nach einer kurzen Verzögerung wieder ausschaltet).
+
+        # Wenn du keine Ausgänge schalten willst, musst du trotzdem die Aktionen definieren, 
+        # damit HomeKit die Statusänderungen akzeptiert. In diesem Fall kannst du Dummy-Services verwenden oder die Fantasie-Namen für die switche nehmen.
+        
+        # Beispiel Dummy-Service:
+        # arm_away:
+        #   service: script.dummy_arm_away
+        # arm_home:
+        #   service: script.dummy_arm_home
+        # disarm:
+        #   service: script.dummy_disarm
+
+
+        # !!! WICHTIG !!!
+        # Homekit arbeitet mit Impuls-Signalen. Das bedeutet, dass die "switch.turn_on" Aktion nur kurz aktiv wird.
+        # Daher ist für das Unscharfschalten ein separater Output nötig, damit die Anlage den Befehl auch wirklich empfängt.
+        # Entsprechend muss die Einbruchmeldeanlage so konfiguriert sein, dass sie die Impulse korrekt verarbeitet.
+        # Nachfolgend ein Beispiel mit drei separaten Outputs für Arm Away (Extern scharf), Arm Home (intern scharf) und Disarm (unscharf):
+
+        arm_away:
+          - target:
+              entity_id:
+                - switch.vds_123456_output_1
+            action: switch.turn_on
+        arm_home:
+          - target:
+              entity_id:
+                - switch.vds_123456_output_2
+            action: switch.turn_on
+        disarm:
+          - target:
+              entity_id:
+                - switch.vds_123456_output_3
+            action: switch.turn_on
+        code_format: number
+        value_template: "{{ states('sensor.vds_system_status_123456') }}" # Status vom Trigger-Sensor holen
