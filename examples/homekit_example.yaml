@@ -80,9 +80,10 @@ alarm_control_panel:
     panels:
       vds_homekit_panel_123456:
         name: EMA 123456
-        unique_id: vds_homekit_device_123456
-        code_arm_required: false # Optional: HomeKit fragt standardmäßig nicht nach einem Code, daher auf false setzen, wenn nicht benötigt. Sonst z.B. "1234" nutzen
-        
+        unique_id: vds_homekit_device_123456 
+        code_arm_required: false # Optional: HomeKit fragt standardmäßig nicht nach einem Code zum Scharfschalten, daher auf false setzen, wenn nicht benötigt.
+        code_format: number
+
         # --- AKTIONEN: STEUERUNG DER ANLAGE ---
         # Ersetze die service-Aufrufe mit den tatsächlichen Entitäten, die deine VdS-Anlage steuern.
 
@@ -117,10 +118,34 @@ alarm_control_panel:
               entity_id:
                 - switch.vds_123456_output_2
             action: switch.turn_on
+
         disarm:
           - target:
               entity_id:
                 - switch.vds_123456_output_3
             action: switch.turn_on
-        code_format: number
+
+        # !!! WICHTIG !!!
+        # Soll zum unscharf schalten ein code verlangt werden, kannst du die Aktion entsprechend anpassen.
+
+        # Bei der Bedienung über die Home-App wird grundsätzlich kein Code abgefragt, da HomeKit davon ausgeht,
+        # dass die Authentifizierung bereits über das gekoppelte Gerät (iPhone, iPad) erfolgt.
+
+        # Für das Bedienen über HomeAssistant kannst du jedoch die Code-Abfrage wie folgt konfigurieren:
+        # 1. Kommentiere die obige disarm-Aktion aus und nutze stattdessen folgenden Block...
+        # 2. Füge in der secrets.yaml einen Eintrag für den Code hinzu, z.B.:
+        #     alarm_code_123456: 1234
+        # 3. Und nutze dann folgenden Code in der disarm-Aktion:
+
+#        disarm:
+#          - variables:
+#              correct_code: !secret alarm_code_123456
+#          - if:
+#              - condition: template
+#                value_template: "{{ code == correct_code }}"
+#            then:
+#              - action: switch.turn_on
+#                target:
+#                  entity_id: switch.vds_123456_output_3
+        
         value_template: "{{ states('sensor.vds_system_status_123456') }}" # Status vom Trigger-Sensor holen
