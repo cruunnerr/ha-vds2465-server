@@ -50,6 +50,10 @@ class VdsConnectivitySensor(BinarySensorEntity):
     async def async_added_to_hass(self):
         """Register callbacks."""
         self.async_on_remove(self._hub.add_listener(self._handle_event))
+        
+        # Initial state from hub
+        if self._hub.is_connected(self._ident_nr):
+            self._attr_is_on = True
 
     @callback
     def _handle_event(self, event_type, data):
