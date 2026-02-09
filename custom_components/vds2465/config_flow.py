@@ -86,9 +86,16 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
             identnr = user_input[CONF_IDENTNR]
             encrypted = user_input.get(CONF_ENCRYPT, True)
             key = user_input.get(CONF_KEY, "")
+            keynr = user_input.get(CONF_KEYNR)
             
-            if encrypted:
-                if not user_input.get(CONF_KEYNR) or not key:
+            existing_devices = self.config_entry_local.options.get(CONF_DEVICES, {})
+            
+            # Check for duplicate identnr
+            if str(identnr) in existing_devices:
+                errors["base"] = "ident_already_exists"
+            
+            if not errors and encrypted:
+                if not keynr or not key:
                     errors["base"] = "key_required"
                 elif len(key) != 32:
                     errors["base"] = "key_length_invalid"
@@ -97,17 +104,24 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                         int(key, 16)
                     except ValueError:
                         errors["base"] = "key_invalid_hex"
+                
+                # Check for duplicate keynr
+                if not errors and keynr:
+                    for dev_data in existing_devices.values():
+                        if dev_data.get("encrypted", True) and dev_data.get("keynr") == keynr:
+                            errors["base"] = "key_nr_already_in_use"
+                            break
             
             if not errors:
                 # Get current options and update devices
                 new_options = self.config_entry_local.options.copy()
-                devices = new_options.get(CONF_DEVICES, {}).copy()
+                devices = existing_devices.copy()
                 
                 storage_key = str(identnr)
                 devices[storage_key] = {
                     "identnr": identnr,
                     "encrypted": encrypted,
-                    "keynr": user_input.get(CONF_KEYNR, 0),
+                    "keynr": keynr or 0,
                     "key": key,
                     "stehend": True,
                     "vds_device": user_input.get(CONF_VDS_DEVICE, 1),
@@ -163,9 +177,10 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             encrypted = user_input.get(CONF_ENCRYPT, True)
             key = user_input.get(CONF_KEY, "")
+            keynr = user_input.get(CONF_KEYNR)
             
             if encrypted:
-                if not user_input.get(CONF_KEYNR) or not key:
+                if not keynr or not key:
                     errors["base"] = "key_required"
                 elif len(key) != 32:
                     errors["base"] = "key_length_invalid"
@@ -174,12 +189,21 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                         int(key, 16)
                     except ValueError:
                         errors["base"] = "key_invalid_hex"
+                
+                # Check for duplicate keynr
+                if not errors and keynr:
+                    for dev_id, dev_data in devices.items():
+                        if dev_id == self._selected_device_id:
+                            continue
+                        if dev_data.get("encrypted", True) and dev_data.get("keynr") == keynr:
+                            errors["base"] = "key_nr_already_in_use"
+                            break
             
             if not errors:
                 # Update existing device entry
                 devices[self._selected_device_id].update({
                     "encrypted": encrypted,
-                    "keynr": user_input.get(CONF_KEYNR, 0),
+                    "keynr": keynr or 0,
                     "key": key,
                     "vds_device": user_input.get(CONF_VDS_DEVICE, 1),
                     "vds_area": user_input.get(CONF_VDS_AREA, 1),

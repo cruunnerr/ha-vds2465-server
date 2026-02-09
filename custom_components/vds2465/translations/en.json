@@ -73,7 +73,9 @@
         },
         "error": {
             "no_devices": "No devices configured to remove.",
-            "key_required": "Encryption enabled: Key Number and AES Key are required."
+            "key_required": "Encryption enabled: Key Number and AES Key are required.",
+            "key_nr_already_in_use": "The Key Number is already in use by another device.",
+            "ident_already_exists": "A device with this Ident Number already exists."
         }
     },
     "entity": {
