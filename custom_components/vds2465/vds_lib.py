@@ -824,3 +824,10 @@ class VdSAsyncServer:
                 conn.send_output_command(address, state, device, area)
                 return True
         return False
+
+    def is_connected(self, identnr):
+        """Check if a device with the given identnr is connected."""
+        for conn in self._connections:
+            if conn.identnr == identnr:
+                return True
+        return False

@@ -239,3 +239,7 @@ class VdsHub:
         """Send output command to a specific device."""
         if not self.server.send_output_command(identnr, address, state, device, area):
             _LOGGER.warning(f"Could not send output command to {identnr}: Device not connected")
+
+    def is_connected(self, identnr):
+        """Check if a device is currently connected."""
+        return self.server.is_connected(identnr)
