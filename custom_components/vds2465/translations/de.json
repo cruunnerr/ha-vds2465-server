@@ -73,7 +73,9 @@
         },
         "error": {
             "no_devices": "Keine Geräte zum Entfernen vorhanden.",
-            "key_required": "Verschlüsselung aktiv: Schlüsselnummer und Key müssen angegeben werden."
+            "key_required": "Verschlüsselung aktiv: Schlüsselnummer und Key müssen angegeben werden.",
+            "key_nr_already_in_use": "Die Schlüsselnummer wird bereits von einem anderen Gerät verwendet.",
+            "ident_already_exists": "Ein Gerät mit dieser Identnummer existiert bereits."
         }
     },
     "entity": {
