@@ -64,7 +64,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
             if kn and kn != "0":
                 key_usage[kn] = dev.get("identnr")
         
-        key_options = {}
+        key_options = {"0": "Kein Schlüssel"}
         # Sort keys numerically
         sorted_keys = sorted(keys.keys(), key=lambda x: int(x) if x.isdigit() else x)
         for k in sorted_keys:
@@ -231,7 +231,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             identnr = user_input[CONF_IDENTNR]
             encrypted = user_input.get(CONF_ENCRYPT, True)
-            keynr = user_input.get(CONF_KEYNR)
+            keynr = user_input.get(CONF_KEYNR, "0")
             
             existing_devices = self.config_entry_local.options.get(CONF_DEVICES, {})
             
@@ -240,11 +240,11 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                 errors["base"] = "ident_already_exists"
             
             if not errors and encrypted:
-                if not keynr:
+                if not keynr or str(keynr) == "0":
                     errors["base"] = "key_required"
                 
-                # Check for duplicate keynr in devices
-                if not errors and keynr:
+                # Check for duplicate keynr in devices (ignoring "0")
+                if not errors and str(keynr) != "0":
                     for dev_data in existing_devices.values():
                         if dev_data.get("encrypted", True) and str(dev_data.get("keynr")) == str(keynr):
                             errors["base"] = "key_nr_already_in_use"
@@ -254,12 +254,16 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                 new_options = self.config_entry_local.options.copy()
                 devices = existing_devices.copy()
                 
+                # Force clean values if not encrypted
+                final_keynr = int(keynr) if encrypted else 0
+                final_key = keys.get(str(keynr), "") if encrypted and str(keynr) != "0" else ""
+
                 storage_key = str(identnr)
                 devices[storage_key] = {
                     "identnr": identnr,
                     "encrypted": encrypted,
-                    "keynr": int(keynr) if keynr else 0,
-                    "key": keys.get(str(keynr), "") if encrypted else "",
+                    "keynr": final_keynr,
+                    "key": final_key,
                     "stehend": True,
                     "vds_device": user_input.get(CONF_VDS_DEVICE, 1),
                     "vds_area": user_input.get(CONF_VDS_AREA, 1),
@@ -277,7 +281,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
             data_schema=vol.Schema({
                 vol.Required(CONF_IDENTNR): str,
                 vol.Required(CONF_ENCRYPT, default=True): bool,
-                vol.Optional(CONF_KEYNR): vol.In(key_options),
+                vol.Optional(CONF_KEYNR, default="0"): vol.In(key_options),
                 vol.Optional(CONF_VDS_DEVICE, default=1): int,
                 vol.Optional(CONF_VDS_AREA, default=1): int,
                 vol.Optional(CONF_VDS_OUTPUTS, default=0): int,
@@ -315,14 +319,14 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
 
         if user_input is not None:
             encrypted = user_input.get(CONF_ENCRYPT, True)
-            keynr = user_input.get(CONF_KEYNR)
+            keynr = user_input.get(CONF_KEYNR, "0")
             
             if encrypted:
-                if not keynr:
+                if not keynr or str(keynr) == "0":
                     errors["base"] = "key_required"
                 
-                # Check for duplicate keynr
-                if not errors and keynr:
+                # Check for duplicate keynr (ignoring "0")
+                if not errors and str(keynr) != "0":
                     for dev_id, dev_data in devices.items():
                         if dev_id == self._selected_device_id:
                             continue
@@ -331,11 +335,15 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                             break
             
             if not errors:
+                # Force clean values if not encrypted
+                final_keynr = int(keynr) if encrypted else 0
+                final_key = keys.get(str(keynr), "") if encrypted and str(keynr) != "0" else ""
+
                 # Update existing device entry
                 devices[self._selected_device_id].update({
                     "encrypted": encrypted,
-                    "keynr": int(keynr) if keynr else 0,
-                    "key": keys.get(str(keynr), "") if encrypted else "",
+                    "keynr": final_keynr,
+                    "key": final_key,
                     "vds_device": user_input.get(CONF_VDS_DEVICE, 1),
                     "vds_area": user_input.get(CONF_VDS_AREA, 1),
                     "vds_outputs": user_input.get(CONF_VDS_OUTPUTS, 0),
@@ -347,7 +355,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                 return self.async_create_entry(title="", data=new_options)
 
         key_options = self._get_key_options_with_usage()
-        current_keynr = str(device_data.get("keynr", ""))
+        current_keynr = str(device_data.get("keynr", "0"))
 
         return self.async_show_form(
             step_id="edit_device_details",
