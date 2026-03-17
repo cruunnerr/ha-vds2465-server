@@ -1,4 +1,5 @@
 DOMAIN = "vds2465"
+CONF_KEYS = "keys"
 CONF_PORT = "port"
 CONF_DEVICES = "devices"
 CONF_IDENTNR = "identnr"
