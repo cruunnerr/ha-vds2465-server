@@ -5,6 +5,7 @@ from homeassistant.const import CONF_PORT
 
 from .const import (
     DOMAIN, 
+    CONF_KEYS,
     DEFAULT_PORT, 
     CONF_DEVICES, 
     CONF_IDENTNR, 
@@ -48,13 +49,156 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
         """Initialize options flow."""
         self.config_entry_local = config_entry
         self._selected_device_id = None
+        self._selected_key_id = None
         super().__init__()
 
+    def _get_key_options_with_usage(self):
+        """Helper to get key numbers with their usage information."""
+        keys = self.config_entry_local.options.get(CONF_KEYS, {})
+        devices = self.config_entry_local.options.get(CONF_DEVICES, {})
+        
+        # Map keynr -> identnr
+        key_usage = {}
+        for dev in devices.values():
+            kn = str(dev.get("keynr", ""))
+            if kn and kn != "0":
+                key_usage[kn] = dev.get("identnr")
+        
+        key_options = {}
+        # Sort keys numerically
+        sorted_keys = sorted(keys.keys(), key=lambda x: int(x) if x.isdigit() else x)
+        for k in sorted_keys:
+            label = f"{k}"
+            if k in key_usage:
+                label += f" (verwendet von {key_usage[k]})"
+            key_options[k] = label
+        return key_options
+
     async def async_step_init(self, user_input=None):
+        # Migration: Ensure CONF_KEYS exists in options
+        if CONF_KEYS not in self.config_entry_local.options:
+            new_options = self.config_entry_local.options.copy()
+            keys = {}
+            devices = new_options.get(CONF_DEVICES, {})
+            for dev_data in devices.values():
+                if dev_data.get("encrypted", True) and dev_data.get("keynr"):
+                    keys[str(dev_data.get("keynr"))] = dev_data.get("key", "")
+            new_options[CONF_KEYS] = keys
+            self.hass.config_entries.async_update_entry(self.config_entry_local, options=new_options)
+
         return self.async_show_menu(
             step_id="init",
-            menu_options=["global_settings", "add_device", "edit_device", "remove_device"]
+            menu_options=["global_settings", "manage_keys", "manage_devices"]
         )
+
+    async def async_step_manage_devices(self, user_input=None):
+        """Step to manage devices."""
+        return self.async_show_menu(
+            step_id="manage_devices",
+            menu_options=["add_device", "edit_device_select", "remove_device", "back"]
+        )
+
+    async def async_step_manage_keys(self, user_input=None):
+        """Step to manage keys menu."""
+        return self.async_show_menu(
+            step_id="manage_keys",
+            menu_options=["add_key", "edit_key_select", "back"]
+        )
+
+    async def async_step_back(self, user_input=None):
+        """Go back to main menu."""
+        return await self.async_step_init()
+
+    async def async_step_add_key(self, user_input=None):
+        """Step to add a new key."""
+        errors = {}
+        if user_input is not None:
+            keynr = str(user_input[CONF_KEYNR])
+            key = user_input[CONF_KEY]
+            
+            keys = self.config_entry_local.options.get(CONF_KEYS, {}).copy()
+            
+            if keynr in keys:
+                errors["base"] = "key_nr_already_exists"
+            elif len(key) != 32:
+                errors["base"] = "key_length_invalid"
+            else:
+                try:
+                    int(key, 16)
+                except ValueError:
+                    errors["base"] = "key_invalid_hex"
+            
+            if not errors:
+                keys[keynr] = key
+                new_options = self.config_entry_local.options.copy()
+                new_options[CONF_KEYS] = keys
+                return self.async_create_entry(title="", data=new_options)
+
+        return self.async_show_form(
+            step_id="add_key",
+            data_schema=vol.Schema({
+                vol.Required(CONF_KEYNR): int,
+                vol.Required(CONF_KEY): str,
+            }),
+            errors=errors
+        )
+
+    async def async_step_edit_key_select(self, user_input=None):
+        """Step to select a key for editing."""
+        key_options = self._get_key_options_with_usage()
+        if not key_options:
+            return self.async_abort(reason="no_keys")
+
+        if user_input is not None:
+            self._selected_key_id = user_input["key_to_edit"]
+            return await self.async_step_edit_key_details()
+
+        return self.async_show_form(
+            step_id="edit_key_select",
+            data_schema=vol.Schema({
+                vol.Required("key_to_edit"): vol.In(key_options)
+            })
+        )
+
+    async def async_step_edit_key_details(self, user_input=None):
+        """Step to edit key details or delete the key."""
+        errors = {}
+        keys = self.config_entry_local.options.get(CONF_KEYS, {}).copy()
+        current_key = keys.get(self._selected_key_id, "")
+
+        if user_input is not None:
+            if user_input.get("delete_key"):
+                if self._selected_key_id in keys:
+                    del keys[self._selected_key_id]
+                new_options = self.config_entry_local.options.copy()
+                new_options[CONF_KEYS] = keys
+                return self.async_create_entry(title="", data=new_options)
+            
+            key = user_input[CONF_KEY]
+            if len(key) != 32:
+                errors["base"] = "key_length_invalid"
+            else:
+                try:
+                    int(key, 16)
+                except ValueError:
+                    errors["base"] = "key_invalid_hex"
+            
+            if not errors:
+                keys[self._selected_key_id] = key
+                new_options = self.config_entry_local.options.copy()
+                new_options[CONF_KEYS] = keys
+                return self.async_create_entry(title="", data=new_options)
+
+        return self.async_show_form(
+            step_id="edit_key_details",
+            data_schema=vol.Schema({
+                vol.Required(CONF_KEY, default=current_key): str,
+                vol.Optional("delete_key", default=False): bool,
+            }),
+            description_placeholders={"keynr": self._selected_key_id},
+            errors=errors
+        )
+
 
     async def async_step_global_settings(self, user_input=None):
         """Step to configure global settings."""
@@ -82,10 +226,11 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_add_device(self, user_input=None):
         errors = {}
+        keys = self.config_entry_local.options.get(CONF_KEYS, {})
+        
         if user_input is not None:
             identnr = user_input[CONF_IDENTNR]
             encrypted = user_input.get(CONF_ENCRYPT, True)
-            key = user_input.get(CONF_KEY, "")
             keynr = user_input.get(CONF_KEYNR)
             
             existing_devices = self.config_entry_local.options.get(CONF_DEVICES, {})
@@ -95,25 +240,17 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                 errors["base"] = "ident_already_exists"
             
             if not errors and encrypted:
-                if not keynr or not key:
+                if not keynr:
                     errors["base"] = "key_required"
-                elif len(key) != 32:
-                    errors["base"] = "key_length_invalid"
-                else:
-                    try:
-                        int(key, 16)
-                    except ValueError:
-                        errors["base"] = "key_invalid_hex"
                 
-                # Check for duplicate keynr
+                # Check for duplicate keynr in devices
                 if not errors and keynr:
                     for dev_data in existing_devices.values():
-                        if dev_data.get("encrypted", True) and dev_data.get("keynr") == keynr:
+                        if dev_data.get("encrypted", True) and str(dev_data.get("keynr")) == str(keynr):
                             errors["base"] = "key_nr_already_in_use"
                             break
             
             if not errors:
-                # Get current options and update devices
                 new_options = self.config_entry_local.options.copy()
                 devices = existing_devices.copy()
                 
@@ -121,8 +258,8 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                 devices[storage_key] = {
                     "identnr": identnr,
                     "encrypted": encrypted,
-                    "keynr": keynr or 0,
-                    "key": key,
+                    "keynr": int(keynr) if keynr else 0,
+                    "key": keys.get(str(keynr), "") if encrypted else "",
                     "stehend": True,
                     "vds_device": user_input.get(CONF_VDS_DEVICE, 1),
                     "vds_area": user_input.get(CONF_VDS_AREA, 1),
@@ -133,13 +270,14 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                 new_options[CONF_DEVICES] = devices
                 return self.async_create_entry(title="", data=new_options)
 
+        key_options = self._get_key_options_with_usage()
+        
         return self.async_show_form(
             step_id="add_device",
             data_schema=vol.Schema({
                 vol.Required(CONF_IDENTNR): str,
                 vol.Required(CONF_ENCRYPT, default=True): bool,
-                vol.Optional(CONF_KEYNR): int,
-                vol.Optional(CONF_KEY, default=""): str,
+                vol.Optional(CONF_KEYNR): vol.In(key_options),
                 vol.Optional(CONF_VDS_DEVICE, default=1): int,
                 vol.Optional(CONF_VDS_AREA, default=1): int,
                 vol.Optional(CONF_VDS_OUTPUTS, default=0): int,
@@ -148,7 +286,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
             errors=errors
         )
 
-    async def async_step_edit_device(self, user_input=None):
+    async def async_step_edit_device_select(self, user_input=None):
         """Selection step for editing a device."""
         devices = self.config_entry_local.options.get(CONF_DEVICES, {})
         if not devices:
@@ -162,7 +300,7 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
         options = {k: f"{v['identnr']} (Encrypted: {v.get('encrypted', True)})" for k, v in devices.items()}
 
         return self.async_show_form(
-            step_id="edit_device",
+            step_id="edit_device_select",
             data_schema=vol.Schema({
                 vol.Required("device_to_edit"): vol.In(options)
             })
@@ -173,29 +311,22 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
         errors = {}
         devices = self.config_entry_local.options.get(CONF_DEVICES, {}).copy()
         device_data = devices.get(self._selected_device_id)
+        keys = self.config_entry_local.options.get(CONF_KEYS, {})
 
         if user_input is not None:
             encrypted = user_input.get(CONF_ENCRYPT, True)
-            key = user_input.get(CONF_KEY, "")
             keynr = user_input.get(CONF_KEYNR)
             
             if encrypted:
-                if not keynr or not key:
+                if not keynr:
                     errors["base"] = "key_required"
-                elif len(key) != 32:
-                    errors["base"] = "key_length_invalid"
-                else:
-                    try:
-                        int(key, 16)
-                    except ValueError:
-                        errors["base"] = "key_invalid_hex"
                 
                 # Check for duplicate keynr
                 if not errors and keynr:
                     for dev_id, dev_data in devices.items():
                         if dev_id == self._selected_device_id:
                             continue
-                        if dev_data.get("encrypted", True) and dev_data.get("keynr") == keynr:
+                        if dev_data.get("encrypted", True) and str(dev_data.get("keynr")) == str(keynr):
                             errors["base"] = "key_nr_already_in_use"
                             break
             
@@ -203,8 +334,8 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                 # Update existing device entry
                 devices[self._selected_device_id].update({
                     "encrypted": encrypted,
-                    "keynr": keynr or 0,
-                    "key": key,
+                    "keynr": int(keynr) if keynr else 0,
+                    "key": keys.get(str(keynr), "") if encrypted else "",
                     "vds_device": user_input.get(CONF_VDS_DEVICE, 1),
                     "vds_area": user_input.get(CONF_VDS_AREA, 1),
                     "vds_outputs": user_input.get(CONF_VDS_OUTPUTS, 0),
@@ -215,13 +346,15 @@ class VdSOptionsFlowHandler(config_entries.OptionsFlow):
                 new_options[CONF_DEVICES] = devices
                 return self.async_create_entry(title="", data=new_options)
 
+        key_options = self._get_key_options_with_usage()
+        current_keynr = str(device_data.get("keynr", ""))
+
         return self.async_show_form(
             step_id="edit_device_details",
             data_schema=vol.Schema({
                 vol.Required(CONF_IDENTNR, default=device_data.get("identnr")): str,
                 vol.Required(CONF_ENCRYPT, default=device_data.get("encrypted", True)): bool,
-                vol.Optional(CONF_KEYNR, default=device_data.get("keynr", 0)): int,
-                vol.Optional(CONF_KEY, default=device_data.get("key", "")): str,
+                vol.Optional(CONF_KEYNR, default=current_keynr): vol.In(key_options),
                 vol.Optional(CONF_VDS_DEVICE, default=device_data.get("vds_device", 1)): int,
                 vol.Optional(CONF_VDS_AREA, default=device_data.get("vds_area", 1)): int,
                 vol.Optional(CONF_VDS_OUTPUTS, default=device_data.get("vds_outputs", 0)): int,

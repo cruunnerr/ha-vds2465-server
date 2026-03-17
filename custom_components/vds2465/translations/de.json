@@ -19,9 +19,45 @@
             "init": {
                 "menu_options": {
                     "global_settings": "Globale Einstellungen (Port / Intervall / Speicherung)",
+                    "manage_keys": "Schlüsselverwaltung",
+                    "manage_devices": "Geräteverwaltung"
+                }
+            },
+            "manage_devices": {
+                "title": "Geräteverwaltung",
+                "menu_options": {
                     "add_device": "Gerät hinzufügen",
-                    "edit_device": "Gerät bearbeiten",
-                    "remove_device": "Gerät entfernen"
+                    "edit_device_select": "Gerät bearbeiten",
+                    "remove_device": "Gerät entfernen",
+                    "back": "Zurück"
+                }
+            },
+            "manage_keys": {
+                "title": "Schlüsselverwaltung",
+                "menu_options": {
+                    "add_key": "Schlüssel hinzufügen",
+                    "edit_key_select": "Bestehenden Schlüssel bearbeiten",
+                    "back": "Zurück"
+                }
+            },
+            "add_key": {
+                "title": "Schlüssel hinzufügen",
+                "data": {
+                    "keynr": "Schlüsselnummer (VdS-KeyNr.)",
+                    "key": "AES Schlüssel (Hex 32-stellig)"
+                }
+            },
+            "edit_key_select": {
+                "title": "Schlüssel auswählen",
+                "data": {
+                    "key_to_edit": "Welchen Schlüssel möchten Sie bearbeiten?"
+                }
+            },
+            "edit_key_details": {
+                "title": "Schlüssel {keynr} bearbeiten",
+                "data": {
+                    "key": "AES Schlüssel (Hex 32-stellig)",
+                    "delete_key": "Diesen Schlüssel unwiderruflich löschen"
                 }
             },
             "global_settings": {
@@ -37,27 +73,25 @@
                 "data": {
                     "identnr": "Identnummer (z.B. 123456)",
                     "encrypted": "Verschlüsselung aktivieren (AES-128)",
-                    "keynr": "Schlüsselnummer (VdS-KeyNr.) - Nötig bei Verschlüsselung",
-                    "key": "AES Schlüssel (Hex 32-stellig) - Nötig bei Verschlüsselung",
+                    "keynr": "Schlüssel auswählen (KeyNr.)",
                     "vds_device": "Gerätenummer (Standard = 1)",
                     "vds_area": "Bereichsnummer (Standard = 1)",
                     "vds_outputs": "Anzahl der Ausgänge (0 zum Deaktivieren)",
                     "test_interval": "Testmeldung Intervall (Minuten, 0 = Aus)"
                 }
             },
-            "edit_device": {
-                "title": "Gerät zur Bearbeitung auswählen",
+            "edit_device_select": {
+                "title": "Gerät auswählen",
                 "data": {
-                    "device_to_edit": "Gerät auswählen"
+                    "device_to_edit": "Welches Gerät möchten Sie bearbeiten?"
                 }
             },
             "edit_device_details": {
-                "title": "Details für Gerät {ident} bearbeiten",
+                "title": "Gerät {ident} bearbeiten",
                 "data": {
                     "identnr": "Identnummer (Nicht änderbar)",
                     "encrypted": "Verschlüsselung aktivieren (AES-128)",
-                    "keynr": "Schlüsselnummer (VdS-KeyNr.)",
-                    "key": "AES Schlüssel (HEX-Format)",
+                    "keynr": "Schlüssel auswählen (KeyNr.)",
                     "vds_device": "Gerätenummer",
                     "vds_area": "Bereichsnummer",
                     "vds_outputs": "Anzahl der Ausgänge",
@@ -67,15 +101,19 @@
             "remove_device": {
                 "title": "Gerät entfernen",
                 "data": {
-                    "device_to_remove": "Gerät auswählen"
+                    "device_to_remove": "Welches Gerät soll entfernt werden?"
                 }
             }
         },
         "error": {
-            "no_devices": "Keine Geräte zum Entfernen vorhanden.",
-            "key_required": "Verschlüsselung aktiv: Schlüsselnummer und Key müssen angegeben werden.",
-            "key_nr_already_in_use": "Die Schlüsselnummer wird bereits von einem anderen Gerät verwendet.",
-            "ident_already_exists": "Ein Gerät mit dieser Identnummer existiert bereits."
+            "no_devices": "Keine Geräte vorhanden.",
+            "no_keys": "Keine Schlüssel vorhanden.",
+            "key_required": "Verschlüsselung aktiv: Bitte wählen Sie einen Schlüssel aus.",
+            "key_nr_already_in_use": "Diese Schlüsselnummer wird bereits von einem anderen Gerät verwendet.",
+            "key_nr_already_exists": "Diese Schlüsselnummer ist bereits registriert.",
+            "key_length_invalid": "Der AES-Schlüssel muss exakt 32 Zeichen lang sein.",
+            "key_invalid_hex": "Ungültiges Format: Der Schlüssel darf nur Hexadezimalzeichen (0-9, A-F) enthalten.",
+            "ident_already_exists": "Ein Gerät mit dieser Identnummer ist bereits vorhanden."
         }
     },
     "entity": {

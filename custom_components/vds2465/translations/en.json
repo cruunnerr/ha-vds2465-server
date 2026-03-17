@@ -19,9 +19,45 @@
             "init": {
                 "menu_options": {
                     "global_settings": "Global Settings (Port / Interval / Persistence)",
-                    "add_device": "Add VdS Device",
-                    "edit_device": "Edit VdS Device",
-                    "remove_device": "Remove VdS Device"
+                    "manage_keys": "Key Management",
+                    "manage_devices": "Device Management"
+                }
+            },
+            "manage_devices": {
+                "title": "Device Management",
+                "menu_options": {
+                    "add_device": "Add Device",
+                    "edit_device_select": "Edit Device",
+                    "remove_device": "Remove Device",
+                    "back": "Back"
+                }
+            },
+            "manage_keys": {
+                "title": "Key Management",
+                "menu_options": {
+                    "add_key": "Add Key",
+                    "edit_key_select": "Edit Existing Key",
+                    "back": "Back"
+                }
+            },
+            "add_key": {
+                "title": "Add Key",
+                "data": {
+                    "keynr": "Key Number (VdS-KeyNr.)",
+                    "key": "AES Key (Hex 32-digit)"
+                }
+            },
+            "edit_key_select": {
+                "title": "Select Key",
+                "data": {
+                    "key_to_edit": "Which key would you like to edit?"
+                }
+            },
+            "edit_key_details": {
+                "title": "Edit Key {keynr}",
+                "data": {
+                    "key": "AES Key (Hex 32-digit)",
+                    "delete_key": "Permanently delete this key"
                 }
             },
             "global_settings": {
@@ -37,27 +73,25 @@
                 "data": {
                     "identnr": "Ident number (e.g. 123456)",
                     "encrypted": "Enable Encryption (AES-128)",
-                    "keynr": "Key number (VdS-KeyNr.) - Required if encrypted",
-                    "key": "AES Key (Hex 32-digit) - Required if encrypted",
+                    "keynr": "Select Key (KeyNr.)",
                     "vds_device": "Device number (Standard = 1)",
                     "vds_area": "Area number (Standard = 1)",
                     "vds_outputs": "Number of outputs (0 to disable)",
                     "test_interval": "Test Message Interval (Minutes, 0 = Off)"
                 }
             },
-            "edit_device": {
-                "title": "Select device to edit",
+            "edit_device_select": {
+                "title": "Select Device",
                 "data": {
-                    "device_to_edit": "Select Device"
+                    "device_to_edit": "Which device would you like to edit?"
                 }
             },
             "edit_device_details": {
-                "title": "Edit details for device {ident}",
+                "title": "Edit Device {ident}",
                 "data": {
                     "identnr": "Ident number (Cannot be changed)",
                     "encrypted": "Enable Encryption (AES-128)",
-                    "keynr": "Key number (VdS-KeyNr.)",
-                    "key": "AES Key (HEX format)",
+                    "keynr": "Select Key (KeyNr.)",
                     "vds_device": "Device number",
                     "vds_area": "Area number",
                     "vds_outputs": "Number of outputs",
@@ -67,14 +101,18 @@
             "remove_device": {
                 "title": "Remove Device",
                 "data": {
-                    "device_to_remove": "Select Device"
+                    "device_to_remove": "Which device should be removed?"
                 }
             }
         },
         "error": {
-            "no_devices": "No devices configured to remove.",
-            "key_required": "Encryption enabled: Key Number and AES Key are required.",
-            "key_nr_already_in_use": "The Key Number is already in use by another device.",
+            "no_devices": "No devices configured.",
+            "no_keys": "No keys configured.",
+            "key_required": "Encryption enabled: Please select a Key Number.",
+            "key_nr_already_in_use": "This Key Number is already in use by another device.",
+            "key_nr_already_exists": "This Key Number is already registered.",
+            "key_length_invalid": "The AES key must be exactly 32 characters long.",
+            "key_invalid_hex": "Invalid format: The key must only contain hexadecimal characters (0-9, A-F).",
             "ident_already_exists": "A device with this Ident Number already exists."
         }
     },
